@@ -12,6 +12,7 @@ import orhestra.coordinator.scheduler.Scheduler;
 import orhestra.coordinator.server.RouterHandler;
 import orhestra.coordinator.service.JobService;
 import orhestra.coordinator.service.SpotService;
+import orhestra.coordinator.service.SpotTaskBlacklist;
 import orhestra.coordinator.service.TaskService;
 import orhestra.coordinator.store.Database;
 import orhestra.coordinator.store.JdbcJobRepository;
@@ -43,6 +44,7 @@ public final class Dependencies implements AutoCloseable {
     private final TaskRepository taskRepository;
     private final SpotRepository spotRepository;
     private final JobRepository jobRepository;
+    private final SpotTaskBlacklist blacklist;
     private final TaskService taskService;
     private final SpotService spotService;
     private final JobService jobService;
@@ -74,7 +76,8 @@ public final class Dependencies implements AutoCloseable {
         this.jobRepository = new JdbcJobRepository(database);
 
         // Services
-        this.taskService = new TaskService(taskRepository, config);
+        this.blacklist = new SpotTaskBlacklist();
+        this.taskService = new TaskService(taskRepository, spotRepository, blacklist, config);
         this.spotService = new SpotService(spotRepository, taskRepository, config);
         this.jobService = new JobService(jobRepository, taskRepository, config);
 

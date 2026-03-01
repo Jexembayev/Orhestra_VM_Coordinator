@@ -65,6 +65,22 @@ public interface TaskRepository {
     List<Task> claimTasks(String spotId, int maxTasks);
 
     /**
+     * Atomically claim tasks matching spot capabilities.
+     * Only claims tasks whose optimizer_id and algorithm are in the supported
+     * lists.
+     * Tasks whose IDs are in excludeTaskIds are skipped (blacklisted).
+     *
+     * @param spotId          the SPOT claiming the tasks
+     * @param maxTasks        maximum tasks to claim
+     * @param supportedOptIds optimizer IDs this spot supports (null = no filter)
+     * @param supportedAlgs   algorithms this spot supports (null = no filter)
+     * @param excludeTaskIds  task IDs to exclude (blacklisted)
+     * @return list of claimed tasks
+     */
+    List<Task> claimTasks(String spotId, int maxTasks, List<String> supportedOptIds,
+            List<String> supportedAlgs, List<String> excludeTaskIds);
+
+    /**
      * Complete a task successfully.
      * Only succeeds if task is RUNNING and assigned to the given SPOT.
      * 

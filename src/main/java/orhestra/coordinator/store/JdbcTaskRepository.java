@@ -75,8 +75,8 @@ public class JdbcTaskRepository implements TaskRepository {
 
         String sql = """
                     INSERT INTO tasks (id, job_id, payload, status, priority, attempts, max_attempts, created_at,
-                                       algorithm, input_iterations, input_agents, input_dimension)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                       algorithm, optimizer_id, function, input_iterations, input_agents, input_dimension)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection conn = db.getConnection();
@@ -92,9 +92,11 @@ public class JdbcTaskRepository implements TaskRepository {
                 ps.setInt(7, task.maxAttempts());
                 setTimestamp(ps, 8, task.createdAt() != null ? task.createdAt() : Instant.now());
                 ps.setString(9, task.algorithm());
-                setIntOrNull(ps, 10, task.inputIterations());
-                setIntOrNull(ps, 11, task.inputAgents());
-                setIntOrNull(ps, 12, task.inputDimension());
+                ps.setString(10, task.optimizerId());
+                ps.setString(11, task.function());
+                setIntOrNull(ps, 12, task.inputIterations());
+                setIntOrNull(ps, 13, task.inputAgents());
+                setIntOrNull(ps, 14, task.inputDimension());
                 ps.addBatch();
             }
 
@@ -226,6 +228,106 @@ public class JdbcTaskRepository implements TaskRepository {
 
                 if (!claimed.isEmpty()) {
                     log.info("Claimed {} tasks for spot {}", claimed.size(), spotId);
+                }
+
+                return claimed;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw e;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to claim tasks for spot: " + spotId, e);
+        }
+    }
+
+    @Override
+    public List<Task> claimTasks(String spotId, int maxTasks, List<String> supportedOptIds,
+            List<String> supportedAlgs, List<String> excludeTaskIds) {
+        // Build dynamic SQL with capability filters
+        StringBuilder selectSql = new StringBuilder(
+                "SELECT id, job_id, payload FROM tasks WHERE status = 'NEW'");
+        List<Object> params = new ArrayList<>();
+
+        // Filter by optimizer_id if spot declares supported optimizers
+        if (supportedOptIds != null && !supportedOptIds.isEmpty()) {
+            selectSql.append(" AND (optimizer_id IS NULL OR optimizer_id IN (");
+            selectSql.append(String.join(",", supportedOptIds.stream().map(s -> "?").toList()));
+            selectSql.append("))");
+            params.addAll(supportedOptIds);
+        }
+
+        // Filter by algorithm if spot declares supported algorithms
+        if (supportedAlgs != null && !supportedAlgs.isEmpty()) {
+            selectSql.append(" AND (algorithm IS NULL OR algorithm IN (");
+            selectSql.append(String.join(",", supportedAlgs.stream().map(s -> "?").toList()));
+            selectSql.append("))");
+            params.addAll(supportedAlgs);
+        }
+
+        // Exclude blacklisted task IDs
+        if (excludeTaskIds != null && !excludeTaskIds.isEmpty()) {
+            selectSql.append(" AND id NOT IN (");
+            selectSql.append(String.join(",", excludeTaskIds.stream().map(s -> "?").toList()));
+            selectSql.append(")");
+            params.addAll(excludeTaskIds);
+        }
+
+        selectSql.append(" ORDER BY priority DESC, created_at LIMIT ? FOR UPDATE");
+        params.add(maxTasks);
+
+        String updateSql = """
+                    UPDATE tasks
+                    SET status = 'RUNNING', assigned_to = ?, started_at = ?, attempts = attempts + 1
+                    WHERE id = ? AND status = 'NEW'
+                """;
+
+        List<Task> claimed = new ArrayList<>();
+
+        try (Connection conn = db.getConnection()) {
+            try (PreparedStatement selectPs = conn.prepareStatement(selectSql.toString());
+                    PreparedStatement updatePs = conn.prepareStatement(updateSql)) {
+
+                // Set parameters
+                for (int i = 0; i < params.size(); i++) {
+                    Object p = params.get(i);
+                    if (p instanceof String s)
+                        selectPs.setString(i + 1, s);
+                    else if (p instanceof Integer n)
+                        selectPs.setInt(i + 1, n);
+                }
+
+                try (ResultSet rs = selectPs.executeQuery()) {
+                    Timestamp now = Timestamp.from(Instant.now());
+
+                    while (rs.next()) {
+                        String id = rs.getString("id");
+                        String jobId = rs.getString("job_id");
+                        String payload = rs.getString("payload");
+
+                        updatePs.setString(1, spotId);
+                        updatePs.setTimestamp(2, now);
+                        updatePs.setString(3, id);
+                        updatePs.addBatch();
+
+                        claimed.add(Task.builder()
+                                .id(id)
+                                .jobId(jobId)
+                                .payload(payload)
+                                .status(TaskStatus.RUNNING)
+                                .assignedTo(spotId)
+                                .startedAt(now.toInstant())
+                                .build());
+                    }
+                }
+
+                if (!claimed.isEmpty()) {
+                    updatePs.executeBatch();
+                }
+
+                conn.commit();
+
+                if (!claimed.isEmpty()) {
+                    log.info("Claimed {} tasks for spot {} (capability-filtered)", claimed.size(), spotId);
                 }
 
                 return claimed;
@@ -730,6 +832,8 @@ public class JdbcTaskRepository implements TaskRepository {
                 .fopt(getDoubleOrNull(rs, "fopt"))
                 .result(rs.getString("result"))
                 .algorithm(rs.getString("algorithm"))
+                .optimizerId(rs.getString("optimizer_id"))
+                .function(rs.getString("function"))
                 .inputIterations(getIntOrNull(rs, "input_iterations"))
                 .inputAgents(getIntOrNull(rs, "input_agents"))
                 .inputDimension(getIntOrNull(rs, "input_dimension"))

@@ -119,6 +119,8 @@ public final class Database implements AutoCloseable {
                             fopt            DOUBLE,
                             result          CLOB,
                             algorithm       VARCHAR(128),
+                            optimizer_id    VARCHAR(128),
+                            function        VARCHAR(128),
                             input_iterations INT,
                             input_agents     INT,
                             input_dimension  INT
@@ -135,6 +137,9 @@ public final class Database implements AutoCloseable {
                             total_cores     INT DEFAULT 0,
                             ram_used_mb     BIGINT DEFAULT 0,
                             ram_total_mb    BIGINT DEFAULT 0,
+                            max_concurrent  INT DEFAULT 0,
+                            capabilities_json CLOB,
+                            labels          VARCHAR(512),
                             status          VARCHAR(20) DEFAULT 'UP',
                             last_heartbeat  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             registered_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -143,11 +148,16 @@ public final class Database implements AutoCloseable {
 
             // Migrate: add columns for existing databases
             st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS algorithm VARCHAR(128);");
+            st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS optimizer_id VARCHAR(128);");
+            st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS function VARCHAR(128);");
             st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS input_iterations INT;");
             st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS input_agents INT;");
             st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS input_dimension INT;");
             st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS ram_used_mb BIGINT DEFAULT 0;");
             st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS ram_total_mb BIGINT DEFAULT 0;");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS max_concurrent INT DEFAULT 0;");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS capabilities_json CLOB;");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS labels VARCHAR(512);");
 
             // Indexes
             st.addBatch(

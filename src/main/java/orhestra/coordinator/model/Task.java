@@ -26,6 +26,8 @@ public final class Task {
     private final String result; // Full result JSON
     // Input parameters (extracted from payload for DB querying)
     private final String algorithm;
+    private final String optimizerId;
+    private final String function;
     private final Integer inputIterations;
     private final Integer inputAgents;
     private final Integer inputDimension;
@@ -48,6 +50,8 @@ public final class Task {
         this.fopt = builder.fopt;
         this.result = builder.result;
         this.algorithm = builder.algorithm;
+        this.optimizerId = builder.optimizerId;
+        this.function = builder.function;
         this.inputIterations = builder.inputIterations;
         this.inputAgents = builder.inputAgents;
         this.inputDimension = builder.inputDimension;
@@ -122,6 +126,14 @@ public final class Task {
         return algorithm;
     }
 
+    public String optimizerId() {
+        return optimizerId;
+    }
+
+    public String function() {
+        return function;
+    }
+
     public Integer inputIterations() {
         return inputIterations;
     }
@@ -166,6 +178,8 @@ public final class Task {
                 .fopt(fopt)
                 .result(result)
                 .algorithm(algorithm)
+                .optimizerId(optimizerId)
+                .function(function)
                 .inputIterations(inputIterations)
                 .inputAgents(inputAgents)
                 .inputDimension(inputDimension);
@@ -193,6 +207,8 @@ public final class Task {
         private Double fopt;
         private String result;
         private String algorithm;
+        private String optimizerId;
+        private String function;
         private Integer inputIterations;
         private Integer inputAgents;
         private Integer inputDimension;
@@ -279,6 +295,16 @@ public final class Task {
 
         public Builder algorithm(String algorithm) {
             this.algorithm = algorithm;
+            return this;
+        }
+
+        public Builder optimizerId(String optimizerId) {
+            this.optimizerId = optimizerId;
+            return this;
+        }
+
+        public Builder function(String function) {
+            this.function = function;
             return this;
         }
 

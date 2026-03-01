@@ -14,6 +14,9 @@ public final class Spot {
     private final int totalCores;
     private final long ramUsedMb;
     private final long ramTotalMb;
+    private final int maxConcurrent;
+    private final String capabilitiesJson;
+    private final String labels;
     private final SpotStatus status;
     private final Instant lastHeartbeat;
     private final Instant registeredAt;
@@ -26,6 +29,9 @@ public final class Spot {
         this.totalCores = builder.totalCores;
         this.ramUsedMb = builder.ramUsedMb;
         this.ramTotalMb = builder.ramTotalMb;
+        this.maxConcurrent = builder.maxConcurrent;
+        this.capabilitiesJson = builder.capabilitiesJson;
+        this.labels = builder.labels;
         this.status = Objects.requireNonNull(builder.status, "status is required");
         this.lastHeartbeat = builder.lastHeartbeat;
         this.registeredAt = builder.registeredAt;
@@ -60,6 +66,18 @@ public final class Spot {
         return ramTotalMb;
     }
 
+    public int maxConcurrent() {
+        return maxConcurrent;
+    }
+
+    public String capabilitiesJson() {
+        return capabilitiesJson;
+    }
+
+    public String labels() {
+        return labels;
+    }
+
     public SpotStatus status() {
         return status;
     }
@@ -87,6 +105,9 @@ public final class Spot {
                 .totalCores(totalCores)
                 .ramUsedMb(ramUsedMb)
                 .ramTotalMb(ramTotalMb)
+                .maxConcurrent(maxConcurrent)
+                .capabilitiesJson(capabilitiesJson)
+                .labels(labels)
                 .status(status)
                 .lastHeartbeat(lastHeartbeat)
                 .registeredAt(registeredAt);
@@ -104,6 +125,9 @@ public final class Spot {
         private int totalCores;
         private long ramUsedMb;
         private long ramTotalMb;
+        private int maxConcurrent;
+        private String capabilitiesJson;
+        private String labels;
         private SpotStatus status = SpotStatus.UP;
         private Instant lastHeartbeat;
         private Instant registeredAt;
@@ -140,6 +164,21 @@ public final class Spot {
 
         public Builder ramTotalMb(long ramTotalMb) {
             this.ramTotalMb = ramTotalMb;
+            return this;
+        }
+
+        public Builder maxConcurrent(int maxConcurrent) {
+            this.maxConcurrent = maxConcurrent;
+            return this;
+        }
+
+        public Builder capabilitiesJson(String capabilitiesJson) {
+            this.capabilitiesJson = capabilitiesJson;
+            return this;
+        }
+
+        public Builder labels(String labels) {
+            this.labels = labels;
             return this;
         }
 

@@ -13,7 +13,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record TaskFailRequest(
         @JsonProperty("spotId") String spotId,
         @JsonProperty("error") String error,
-        @JsonProperty("retriable") boolean retriable) {
+        @JsonProperty("retriable") boolean retriable,
+        @JsonProperty("failureReason") String failureReason) {
     /** Default: failures are retriable unless explicitly marked otherwise */
     public static final boolean DEFAULT_RETRIABLE = true;
 
@@ -25,11 +26,16 @@ public record TaskFailRequest(
 
     /** Create with defaults */
     public static TaskFailRequest of(String spotId, String error) {
-        return new TaskFailRequest(spotId, error, DEFAULT_RETRIABLE);
+        return new TaskFailRequest(spotId, error, DEFAULT_RETRIABLE, "RUNTIME_ERROR");
     }
 
     /** Create non-retriable failure */
     public static TaskFailRequest permanent(String spotId, String error) {
-        return new TaskFailRequest(spotId, error, false);
+        return new TaskFailRequest(spotId, error, false, "RUNTIME_ERROR");
+    }
+
+    /** Create unsupported failure */
+    public static TaskFailRequest unsupported(String spotId, String error) {
+        return new TaskFailRequest(spotId, error, false, "UNSUPPORTED");
     }
 }

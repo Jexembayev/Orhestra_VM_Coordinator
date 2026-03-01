@@ -32,21 +32,35 @@ public class SpotService {
     }
 
     /**
-     * Register a new SPOT and return its ID.
+     * Register a new SPOT (legacy — no capabilities).
      */
     public String registerSpot(String ipAddress) {
+        return registerSpot(ipAddress, 0, 0, 0, null, null);
+    }
+
+    /**
+     * Register a new SPOT with capabilities.
+     */
+    public String registerSpot(String ipAddress, int cores, long ramMb,
+            int maxConcurrent, String capabilitiesJson, String labels) {
         String spotId = spotRepository.generateId();
 
         Spot spot = Spot.builder()
                 .id(spotId)
                 .ipAddress(ipAddress)
+                .totalCores(cores)
+                .ramTotalMb(ramMb)
+                .maxConcurrent(maxConcurrent)
+                .capabilitiesJson(capabilitiesJson)
+                .labels(labels)
                 .status(SpotStatus.UP)
                 .lastHeartbeat(Instant.now())
                 .registeredAt(Instant.now())
                 .build();
 
         spotRepository.save(spot);
-        log.info("Registered new SPOT: {} from {}", spotId, ipAddress);
+        log.info("Registered new SPOT: {} from {} (cores={}, maxConcurrent={}, capabilities={})",
+                spotId, ipAddress, cores, maxConcurrent, capabilitiesJson != null ? "yes" : "none");
 
         return spotId;
     }

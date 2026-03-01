@@ -49,9 +49,11 @@ public class JdbcSpotRepository implements SpotRepository {
     @Override
     public void save(Spot spot) {
         String sql = """
-                    MERGE INTO spots (id, ip_address, cpu_load, running_tasks, total_cores, status, last_heartbeat, registered_at)
+                    MERGE INTO spots (id, ip_address, cpu_load, running_tasks, total_cores,
+                                      ram_used_mb, ram_total_mb, max_concurrent, capabilities_json, labels,
+                                      status, last_heartbeat, registered_at)
                     KEY (id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection conn = db.getConnection();
@@ -62,9 +64,14 @@ public class JdbcSpotRepository implements SpotRepository {
             ps.setDouble(3, spot.cpuLoad());
             ps.setInt(4, spot.runningTasks());
             ps.setInt(5, spot.totalCores());
-            ps.setString(6, spot.status().name());
-            setTimestamp(ps, 7, spot.lastHeartbeat());
-            setTimestamp(ps, 8, spot.registeredAt());
+            ps.setLong(6, spot.ramUsedMb());
+            ps.setLong(7, spot.ramTotalMb());
+            ps.setInt(8, spot.maxConcurrent());
+            ps.setString(9, spot.capabilitiesJson());
+            ps.setString(10, spot.labels());
+            ps.setString(11, spot.status().name());
+            setTimestamp(ps, 12, spot.lastHeartbeat());
+            setTimestamp(ps, 13, spot.registeredAt());
 
             ps.executeUpdate();
             conn.commit();
@@ -290,6 +297,9 @@ public class JdbcSpotRepository implements SpotRepository {
                 .totalCores(rs.getInt("total_cores"))
                 .ramUsedMb(rs.getLong("ram_used_mb"))
                 .ramTotalMb(rs.getLong("ram_total_mb"))
+                .maxConcurrent(rs.getInt("max_concurrent"))
+                .capabilitiesJson(rs.getString("capabilities_json"))
+                .labels(rs.getString("labels"))
                 .status(SpotStatus.valueOf(rs.getString("status")))
                 .lastHeartbeat(toInstant(rs.getTimestamp("last_heartbeat")))
                 .registeredAt(toInstant(rs.getTimestamp("registered_at")))

@@ -5,6 +5,7 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 import orhestra.coordinator.api.Controller;
 import orhestra.coordinator.api.internal.v1.dto.HeartbeatRequest;
+import orhestra.coordinator.api.internal.v1.dto.HelloRequest;
 import orhestra.coordinator.api.internal.v1.dto.HelloResponse;
 import orhestra.coordinator.api.internal.v1.dto.OperationResponse;
 import orhestra.coordinator.core.AppBus;
@@ -61,13 +62,28 @@ public class HeartbeatController implements Controller {
     }
 
     /**
-     * POST /internal/v1/hello - Register new SPOT node
+     * POST /internal/v1/hello - Register new SPOT node with capabilities
      */
     private ControllerResponse handleHello(ChannelHandlerContext ctx, FullHttpRequest req) throws Exception {
         String clientIp = ((InetSocketAddress) ctx.channel().remoteAddress())
                 .getAddress().getHostAddress();
 
-        String spotId = spotService.registerSpot(clientIp);
+        String body = req.content().toString(StandardCharsets.UTF_8);
+
+        String spotId;
+        if (body != null && !body.isBlank()) {
+            // New protocol: parse capabilities
+            HelloRequest helloReq = RouterHandler.mapper().readValue(body, HelloRequest.class);
+            String capJson = helloReq.capabilitiesJson(RouterHandler.mapper());
+            String labels = helloReq.labelsString();
+            int maxConcurrent = helloReq.spotInfo() != null ? helloReq.spotInfo().maxConcurrent() : 0;
+            int cores = helloReq.spotInfo() != null ? helloReq.spotInfo().cpuCores() : 0;
+            long ramMb = helloReq.spotInfo() != null ? helloReq.spotInfo().ramMb() : 0;
+            spotId = spotService.registerSpot(clientIp, cores, ramMb, maxConcurrent, capJson, labels);
+        } else {
+            // Legacy: no body
+            spotId = spotService.registerSpot(clientIp);
+        }
 
         HelloResponse response = HelloResponse.create(spotId);
         return ControllerResponse.json(RouterHandler.mapper().writeValueAsString(response));

@@ -155,7 +155,23 @@ public class TaskController implements Controller {
         // Validate
         request.validate();
 
-        // Report failure with idempotent handling
+        // Check for structured failure reason
+        if (request.failureReason() != null && !request.failureReason().isBlank()) {
+            orhestra.coordinator.model.FailureReason reason = orhestra.coordinator.model.FailureReason
+                    .fromString(request.failureReason());
+
+            boolean willRetry = taskService.failTaskWithReason(taskId, request.spotId(), request.error(), reason);
+
+            AppBus.fireTasksChanged();
+
+            return ControllerResponse.json(
+                    RouterHandler.mapper().writeValueAsString(Map.of(
+                            "success", true,
+                            "willRetry", willRetry,
+                            "failureReason", reason.name())));
+        }
+
+        // Legacy: use idempotent handling
         TaskFailResult result = taskService.failTaskIdempotent(
                 taskId,
                 request.spotId(),
