@@ -33,7 +33,7 @@
     <TitledPane text="SPOT Workers" expanded="true" animated="true">
         <VBox spacing="6">
             <padding><Insets top="6" right="6" bottom="6" left="6"/></padding>
-            <ScrollPane fitToHeight="true" prefHeight="100" hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
+            <ScrollPane fitToHeight="true" prefHeight="170" hbarPolicy="AS_NEEDED" vbarPolicy="NEVER"
                         styleClass="spots-scroll">
                 <FlowPane fx:id="spotCards" hgap="8" vgap="8" prefWrapLength="2000"/>
             </ScrollPane>

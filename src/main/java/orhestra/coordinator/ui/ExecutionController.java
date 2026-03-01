@@ -194,10 +194,29 @@ public class ExecutionController {
 
         List<Spot> spots = deps.spotService().findAll();
 
+        // Compute per-spot task stats from loaded tasks
+        java.util.Map<String, SpotTaskStats> statsMap = new java.util.HashMap<>();
+        List<Task> allTasks = deps.taskService().findRecent(500);
+        for (Task t : allTasks) {
+            String sid = t.assignedTo();
+            if (sid == null)
+                continue;
+            SpotTaskStats prev = statsMap.getOrDefault(sid, new SpotTaskStats(0, 0, 0));
+            int r = prev.running(), d = prev.done(), f = prev.failed();
+            if (t.status() == TaskStatus.RUNNING)
+                r++;
+            else if (t.status() == TaskStatus.DONE)
+                d++;
+            else if (t.status() == TaskStatus.FAILED)
+                f++;
+            statsMap.put(sid, new SpotTaskStats(r, d, f));
+        }
+
         if (spotCards != null) {
             spotCards.getChildren().clear();
             for (Spot spot : spots) {
-                spotCards.getChildren().add(buildSpotCard(spot));
+                SpotTaskStats stats = statsMap.getOrDefault(spot.id(), new SpotTaskStats(0, 0, 0));
+                spotCards.getChildren().add(buildSpotCard(spot, stats));
             }
         }
         if (lblSpotCount != null) {
@@ -207,44 +226,171 @@ public class ExecutionController {
 
     // ================== Spot Cards ==================
 
-    private VBox buildSpotCard(Spot spot) {
-        VBox card = new VBox(3);
-        card.setPadding(new Insets(8));
-        card.setPrefWidth(130);
-        card.setAlignment(Pos.TOP_LEFT);
+    private VBox buildSpotCard(Spot spot, SpotTaskStats stats) {
+        VBox card = new VBox(0);
+        card.setPrefWidth(270);
+        card.setMinWidth(270);
+        card.setMaxWidth(270);
         card.getStyleClass().add("spot-card");
 
         String status = spot.status() != null ? spot.status().name() : "DOWN";
         boolean isUp = "UP".equals(status);
 
-        // Check if stale (>5s since last heartbeat)
         long age = spot.lastHeartbeat() == null ? Long.MAX_VALUE
                 : Math.max(0, Duration.between(spot.lastHeartbeat(), Instant.now()).getSeconds());
         if (age > 5)
             isUp = false;
 
-        if (isUp)
-            card.getStyleClass().add("spot-card-up");
-        else
+        // Determine card color state
+        double cpu = spot.cpuLoad();
+        int running = stats.running();
+        if (!isUp) {
             card.getStyleClass().add("spot-card-down");
+        } else if (running == 0 && cpu < 20) {
+            card.getStyleClass().add("spot-card-idle"); // green — idle
+        } else if (cpu >= 80) {
+            card.getStyleClass().add("spot-card-overloaded"); // red — overloaded
+        } else {
+            card.getStyleClass().add("spot-card-working"); // yellow — working
+        }
+
+        // === Header: ID + Status ===
+        HBox header = new HBox(6);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setPadding(new Insets(8, 10, 4, 10));
 
         Label idLabel = new Label(spot.id());
-        idLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 12;");
+        idLabel.getStyleClass().add("spot-card-id");
 
-        double cpu = spot.cpuLoad();
-        int tasks = spot.runningTasks();
+        Label statusBadge = new Label(isUp ? "● UP" : "● DOWN");
+        statusBadge.getStyleClass().addAll("spot-card-status", isUp ? "spot-status-up" : "spot-status-down");
 
-        Label cpuLabel = new Label(String.format("CPU: %.0f%%", cpu));
-        cpuLabel.setStyle("-fx-font-size: 11;");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Label tasksLabel = new Label("Tasks: " + tasks);
-        tasksLabel.setStyle("-fx-font-size: 11;");
+        String beatText = age == Long.MAX_VALUE ? "—" : age + "s ago";
+        Label beatLabel = new Label(beatText);
+        beatLabel.getStyleClass().add("spot-card-beat");
 
-        Label beatLabel = new Label(age == Long.MAX_VALUE ? "—" : age + "s ago");
-        beatLabel.setStyle("-fx-font-size: 10; -fx-text-fill: #888;");
+        header.getChildren().addAll(idLabel, statusBadge, spacer, beatLabel);
 
-        card.getChildren().addAll(idLabel, cpuLabel, tasksLabel, beatLabel);
+        // === Resources section ===
+        VBox resources = new VBox(3);
+        resources.setPadding(new Insets(4, 10, 4, 10));
+
+        // CPU bar
+        ProgressBar cpuBar = new ProgressBar(cpu / 100.0);
+        cpuBar.setPrefWidth(250);
+        cpuBar.setPrefHeight(12);
+        cpuBar.getStyleClass().add("spot-cpu-bar");
+        if (cpu >= 80)
+            cpuBar.getStyleClass().add("cpu-high");
+        else if (cpu >= 40)
+            cpuBar.getStyleClass().add("cpu-medium");
+        else
+            cpuBar.getStyleClass().add("cpu-low");
+
+        HBox cpuRow = new HBox(6);
+        cpuRow.setAlignment(Pos.CENTER_LEFT);
+        Label cpuLabel = new Label(String.format("CPU  %.0f%%", cpu));
+        cpuLabel.getStyleClass().add("spot-card-metric");
+        Label coresLabel = new Label("Cores: " + spot.totalCores());
+        coresLabel.getStyleClass().add("spot-card-metric-dim");
+        Region sp2 = new Region();
+        HBox.setHgrow(sp2, Priority.ALWAYS);
+        cpuRow.getChildren().addAll(cpuLabel, sp2, coresLabel);
+
+        // Uptime
+        long uptimeSec = spot.registeredAt() == null ? 0
+                : Duration.between(spot.registeredAt(), Instant.now()).getSeconds();
+        String uptimeText = uptimeSec >= 3600 ? (uptimeSec / 3600) + "h " + ((uptimeSec % 3600) / 60) + "m"
+                : uptimeSec >= 60 ? (uptimeSec / 60) + "m " + (uptimeSec % 60) + "s"
+                        : uptimeSec + "s";
+        Label uptimeLabel = new Label("Uptime: " + uptimeText);
+        uptimeLabel.getStyleClass().add("spot-card-metric-dim");
+
+        resources.getChildren().addAll(cpuRow, cpuBar, uptimeLabel);
+
+        // === Separator ===
+        Separator sep = new Separator();
+        sep.setPadding(new Insets(3, 0, 3, 0));
+
+        // === Tasks section ===
+        VBox tasksSection = new VBox(3);
+        tasksSection.setPadding(new Insets(0, 10, 6, 10));
+
+        Label tasksTitle = new Label("Tasks");
+        tasksTitle.getStyleClass().add("spot-card-section-title");
+
+        // Stats row
+        HBox statsRow = new HBox(10);
+        statsRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label runLabel = mkStatLabel("▶ " + running, "spot-stat-running");
+        Label doneLabel = mkStatLabel("✓ " + stats.done(), "spot-stat-done");
+        Label failLabel = mkStatLabel("✗ " + stats.failed(), "spot-stat-failed");
+
+        statsRow.getChildren().addAll(runLabel, doneLabel, failLabel);
+
+        // Total processed
+        Label totalLabel = new Label("Total: " + stats.total());
+        totalLabel.getStyleClass().add("spot-card-metric-dim");
+
+        // Stacked bar
+        HBox stackedBar = buildStackedBar(stats);
+
+        tasksSection.getChildren().addAll(tasksTitle, statsRow, stackedBar, totalLabel);
+
+        card.getChildren().addAll(header, resources, sep, tasksSection);
         return card;
+    }
+
+    private Label mkStatLabel(String text, String styleClass) {
+        Label l = new Label(text);
+        l.getStyleClass().add(styleClass);
+        return l;
+    }
+
+    private HBox buildStackedBar(SpotTaskStats stats) {
+        HBox bar = new HBox(0);
+        bar.setPrefHeight(6);
+        bar.setMinHeight(6);
+        bar.setMaxHeight(6);
+        bar.getStyleClass().add("spot-stacked-bar");
+
+        int total = Math.max(1, stats.total());
+        double rFrac = stats.running() / (double) total;
+        double dFrac = stats.done() / (double) total;
+        double fFrac = stats.failed() / (double) total;
+
+        if (stats.running() > 0) {
+            Region r = new Region();
+            r.getStyleClass().add("bar-running");
+            HBox.setHgrow(r, Priority.NEVER);
+            r.prefWidthProperty().bind(bar.widthProperty().multiply(rFrac));
+            bar.getChildren().add(r);
+        }
+        if (stats.done() > 0) {
+            Region d = new Region();
+            d.getStyleClass().add("bar-done");
+            d.prefWidthProperty().bind(bar.widthProperty().multiply(dFrac));
+            bar.getChildren().add(d);
+        }
+        if (stats.failed() > 0) {
+            Region f = new Region();
+            f.getStyleClass().add("bar-failed");
+            f.prefWidthProperty().bind(bar.widthProperty().multiply(fFrac));
+            bar.getChildren().add(f);
+        }
+
+        if (stats.total() == 0) {
+            Region empty = new Region();
+            empty.getStyleClass().add("bar-empty");
+            HBox.setHgrow(empty, Priority.ALWAYS);
+            bar.getChildren().add(empty);
+        }
+
+        return bar;
     }
 
     // ================== Stats ==================
