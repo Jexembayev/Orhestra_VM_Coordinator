@@ -48,12 +48,12 @@ public final class SimulatedSpotWorker implements Runnable {
 
         // Register this simulated spot
         try {
-            spotService.heartbeat(spotId, "127.0.0.1", 0.0, 0, 4);
+            spotService.heartbeat(spotId, "127.0.0.1", 0.0, 0, 4, 0, 0);
         } catch (Exception e) {
             // Spot may not exist yet — register first
             try {
                 // Use the spotId directly by registering, then heartbeat
-                spotService.heartbeat(spotId, "127.0.0.1", 0.0, 0, 4);
+                spotService.heartbeat(spotId, "127.0.0.1", 0.0, 0, 4, 0, 0);
             } catch (Exception ex) {
                 log.debug("Sim worker {} could not register: {}", spotId, ex.getMessage());
             }
@@ -123,7 +123,7 @@ public final class SimulatedSpotWorker implements Runnable {
     private void sendHeartbeat(int runningTasks) {
         try {
             double cpu = ThreadLocalRandom.current().nextDouble(10, 90);
-            spotService.heartbeat(spotId, "127.0.0.1", cpu, runningTasks, 4);
+            spotService.heartbeat(spotId, "127.0.0.1", cpu, runningTasks, 4, 0, 0);
         } catch (Exception e) {
             log.debug("Sim {} heartbeat failed: {}", spotId, e.getMessage());
         }

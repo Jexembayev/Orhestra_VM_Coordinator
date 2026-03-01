@@ -123,18 +123,20 @@ public class JdbcSpotRepository implements SpotRepository {
     }
 
     @Override
-    public void heartbeat(String spotId, String ipAddress, double cpuLoad, int runningTasks, int totalCores) {
+    public void heartbeat(String spotId, String ipAddress, double cpuLoad, int runningTasks, int totalCores,
+            long ramUsedMb, long ramTotalMb) {
         // Use UPDATE + INSERT pattern (more portable than MERGE with subselect)
         String updateSql = """
                     UPDATE spots
                     SET ip_address = ?, cpu_load = ?, running_tasks = ?, total_cores = ?,
+                        ram_used_mb = ?, ram_total_mb = ?,
                         status = 'UP', last_heartbeat = ?
                     WHERE id = ?
                 """;
 
         String insertSql = """
-                    INSERT INTO spots (id, ip_address, cpu_load, running_tasks, total_cores, status, last_heartbeat, registered_at)
-                    VALUES (?, ?, ?, ?, ?, 'UP', ?, ?)
+                    INSERT INTO spots (id, ip_address, cpu_load, running_tasks, total_cores, ram_used_mb, ram_total_mb, status, last_heartbeat, registered_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'UP', ?, ?)
                 """;
 
         try (Connection conn = db.getConnection()) {
@@ -146,8 +148,10 @@ public class JdbcSpotRepository implements SpotRepository {
                 ps.setDouble(2, cpuLoad);
                 ps.setInt(3, runningTasks);
                 ps.setInt(4, totalCores);
-                ps.setTimestamp(5, now);
-                ps.setString(6, spotId);
+                ps.setLong(5, ramUsedMb);
+                ps.setLong(6, ramTotalMb);
+                ps.setTimestamp(7, now);
+                ps.setString(8, spotId);
 
                 int updated = ps.executeUpdate();
 
@@ -159,8 +163,10 @@ public class JdbcSpotRepository implements SpotRepository {
                         insertPs.setDouble(3, cpuLoad);
                         insertPs.setInt(4, runningTasks);
                         insertPs.setInt(5, totalCores);
-                        insertPs.setTimestamp(6, now);
-                        insertPs.setTimestamp(7, now);
+                        insertPs.setLong(6, ramUsedMb);
+                        insertPs.setLong(7, ramTotalMb);
+                        insertPs.setTimestamp(8, now);
+                        insertPs.setTimestamp(9, now);
                         insertPs.executeUpdate();
                     }
                 }
@@ -282,6 +288,8 @@ public class JdbcSpotRepository implements SpotRepository {
                 .cpuLoad(rs.getDouble("cpu_load"))
                 .runningTasks(rs.getInt("running_tasks"))
                 .totalCores(rs.getInt("total_cores"))
+                .ramUsedMb(rs.getLong("ram_used_mb"))
+                .ramTotalMb(rs.getLong("ram_total_mb"))
                 .status(SpotStatus.valueOf(rs.getString("status")))
                 .lastHeartbeat(toInstant(rs.getTimestamp("last_heartbeat")))
                 .registeredAt(toInstant(rs.getTimestamp("registered_at")))

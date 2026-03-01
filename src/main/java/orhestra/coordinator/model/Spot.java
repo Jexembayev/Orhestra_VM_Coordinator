@@ -12,6 +12,8 @@ public final class Spot {
     private final double cpuLoad;
     private final int runningTasks;
     private final int totalCores;
+    private final long ramUsedMb;
+    private final long ramTotalMb;
     private final SpotStatus status;
     private final Instant lastHeartbeat;
     private final Instant registeredAt;
@@ -22,6 +24,8 @@ public final class Spot {
         this.cpuLoad = builder.cpuLoad;
         this.runningTasks = builder.runningTasks;
         this.totalCores = builder.totalCores;
+        this.ramUsedMb = builder.ramUsedMb;
+        this.ramTotalMb = builder.ramTotalMb;
         this.status = Objects.requireNonNull(builder.status, "status is required");
         this.lastHeartbeat = builder.lastHeartbeat;
         this.registeredAt = builder.registeredAt;
@@ -46,6 +50,14 @@ public final class Spot {
 
     public int totalCores() {
         return totalCores;
+    }
+
+    public long ramUsedMb() {
+        return ramUsedMb;
+    }
+
+    public long ramTotalMb() {
+        return ramTotalMb;
     }
 
     public SpotStatus status() {
@@ -73,6 +85,8 @@ public final class Spot {
                 .cpuLoad(cpuLoad)
                 .runningTasks(runningTasks)
                 .totalCores(totalCores)
+                .ramUsedMb(ramUsedMb)
+                .ramTotalMb(ramTotalMb)
                 .status(status)
                 .lastHeartbeat(lastHeartbeat)
                 .registeredAt(registeredAt);
@@ -88,6 +102,8 @@ public final class Spot {
         private double cpuLoad;
         private int runningTasks;
         private int totalCores;
+        private long ramUsedMb;
+        private long ramTotalMb;
         private SpotStatus status = SpotStatus.UP;
         private Instant lastHeartbeat;
         private Instant registeredAt;
@@ -114,6 +130,16 @@ public final class Spot {
 
         public Builder totalCores(int totalCores) {
             this.totalCores = totalCores;
+            return this;
+        }
+
+        public Builder ramUsedMb(long ramUsedMb) {
+            this.ramUsedMb = ramUsedMb;
+            return this;
+        }
+
+        public Builder ramTotalMb(long ramTotalMb) {
+            this.ramTotalMb = ramTotalMb;
             return this;
         }
 
@@ -153,6 +179,7 @@ public final class Spot {
 
     @Override
     public String toString() {
-        return "Spot{id='" + id + "', status=" + status + ", cores=" + totalCores + "}";
+        return "Spot{id='" + id + "', status=" + status + ", cores=" + totalCores
+                + ", ram=" + ramUsedMb + "/" + ramTotalMb + "MB}";
     }
 }

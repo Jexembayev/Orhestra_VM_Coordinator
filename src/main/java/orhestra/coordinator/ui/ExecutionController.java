@@ -309,7 +309,36 @@ public class ExecutionController {
         Label uptimeLabel = new Label("Uptime: " + uptimeText);
         uptimeLabel.getStyleClass().add("spot-card-metric-dim");
 
-        resources.getChildren().addAll(cpuRow, cpuBar, uptimeLabel);
+        // RAM bar (only if data available)
+        long ramUsed = spot.ramUsedMb();
+        long ramTotal = spot.ramTotalMb();
+        if (ramTotal > 0) {
+            double ramPct = (double) ramUsed / ramTotal;
+            HBox ramRow = new HBox(6);
+            ramRow.setAlignment(Pos.CENTER_LEFT);
+            Label ramLabel = new Label(String.format("RAM  %d/%d MB", ramUsed, ramTotal));
+            ramLabel.getStyleClass().add("spot-card-metric");
+            Region sp3 = new Region();
+            HBox.setHgrow(sp3, Priority.ALWAYS);
+            Label ramPctLabel = new Label(String.format("%.0f%%", ramPct * 100));
+            ramPctLabel.getStyleClass().add("spot-card-metric-dim");
+            ramRow.getChildren().addAll(ramLabel, sp3, ramPctLabel);
+
+            ProgressBar ramBar = new ProgressBar(ramPct);
+            ramBar.setPrefWidth(250);
+            ramBar.setPrefHeight(10);
+            ramBar.getStyleClass().add("spot-cpu-bar");
+            if (ramPct >= 0.85)
+                ramBar.getStyleClass().add("cpu-high");
+            else if (ramPct >= 0.60)
+                ramBar.getStyleClass().add("cpu-medium");
+            else
+                ramBar.getStyleClass().add("cpu-low");
+
+            resources.getChildren().addAll(cpuRow, cpuBar, ramRow, ramBar, uptimeLabel);
+        } else {
+            resources.getChildren().addAll(cpuRow, cpuBar, uptimeLabel);
+        }
 
         // === Separator ===
         Separator sep = new Separator();

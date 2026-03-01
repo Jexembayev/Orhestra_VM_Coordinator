@@ -92,7 +92,9 @@ public class HeartbeatController implements Controller {
                 clientIp,
                 request.cpuLoad(),
                 request.runningTasks(),
-                request.totalCores());
+                request.totalCores(),
+                request.ramUsedMb(),
+                request.ramTotalMb());
 
         // Fire UI event
         AppBus.fireSpotsChanged();

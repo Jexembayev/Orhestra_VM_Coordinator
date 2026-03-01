@@ -53,9 +53,11 @@ public class SpotService {
     /**
      * Process heartbeat from a SPOT.
      */
-    public void heartbeat(String spotId, String ipAddress, double cpuLoad, int runningTasks, int totalCores) {
-        spotRepository.heartbeat(spotId, ipAddress, cpuLoad, runningTasks, totalCores);
-        log.debug("Heartbeat from spot {} (cpu={}%, tasks={}, cores={})", spotId, cpuLoad, runningTasks, totalCores);
+    public void heartbeat(String spotId, String ipAddress, double cpuLoad, int runningTasks, int totalCores,
+            long ramUsedMb, long ramTotalMb) {
+        spotRepository.heartbeat(spotId, ipAddress, cpuLoad, runningTasks, totalCores, ramUsedMb, ramTotalMb);
+        log.debug("Heartbeat from spot {} (cpu={}%, tasks={}, cores={}, ram={}/{}MB)", spotId, cpuLoad, runningTasks,
+                totalCores, ramUsedMb, ramTotalMb);
     }
 
     /**

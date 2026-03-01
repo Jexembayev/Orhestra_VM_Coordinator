@@ -14,7 +14,9 @@ public record HeartbeatRequest(
         @JsonProperty("spotId") String spotId,
         @JsonProperty("cpuLoad") double cpuLoad,
         @JsonProperty("runningTasks") int runningTasks,
-        @JsonProperty("totalCores") int totalCores) {
+        @JsonProperty("totalCores") int totalCores,
+        @JsonProperty("ramUsedMb") long ramUsedMb,
+        @JsonProperty("ramTotalMb") long ramTotalMb) {
     public void validate() {
         if (spotId == null || spotId.isBlank()) {
             throw new IllegalArgumentException("spotId is required");

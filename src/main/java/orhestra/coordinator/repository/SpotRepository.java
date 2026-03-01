@@ -52,7 +52,8 @@ public interface SpotRepository {
      * @param runningTasks number of tasks currently running
      * @param totalCores   total CPU cores
      */
-    void heartbeat(String spotId, String ipAddress, double cpuLoad, int runningTasks, int totalCores);
+    void heartbeat(String spotId, String ipAddress, double cpuLoad, int runningTasks, int totalCores, long ramUsedMb,
+            long ramTotalMb);
 
     /**
      * Mark SPOTs as DOWN if they haven't sent heartbeat recently.

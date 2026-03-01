@@ -24,7 +24,7 @@ public class CoordinatorCore {
 
     // ---- SPOTS ----
     public void heartbeat(String spotId, double cpu, int running, int cores, String ip) {
-        deps().spotService().heartbeat(spotId, ip, cpu, running, cores);
+        deps().spotService().heartbeat(spotId, ip, cpu, running, cores, 0, 0);
     }
 
     /** Mark stale spots as DOWN and free their tasks */

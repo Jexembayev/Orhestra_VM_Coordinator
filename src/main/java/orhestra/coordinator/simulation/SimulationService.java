@@ -54,7 +54,7 @@ public final class SimulationService {
 
             // Pre-register the spot so it appears in the table immediately
             try {
-                spotService.heartbeat(spotId, "127.0.0.1", 0.0, 0, 4);
+                spotService.heartbeat(spotId, "127.0.0.1", 0.0, 0, 4, 0, 0);
             } catch (Exception e) {
                 log.debug("Pre-register sim spot {} failed, will retry in worker", spotId);
             }

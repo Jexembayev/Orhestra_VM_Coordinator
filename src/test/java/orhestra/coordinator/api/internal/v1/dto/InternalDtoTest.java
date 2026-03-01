@@ -32,10 +32,10 @@ class InternalDtoTest {
 
     @Test
     void heartbeatRequestValidation() {
-        HeartbeatRequest invalid = new HeartbeatRequest("", 50.0, 1, 4);
+        HeartbeatRequest invalid = new HeartbeatRequest("", 50.0, 1, 4, 0, 0);
         assertThrows(IllegalArgumentException.class, invalid::validate);
 
-        HeartbeatRequest badCpu = new HeartbeatRequest("spot-1", 150.0, 1, 4);
+        HeartbeatRequest badCpu = new HeartbeatRequest("spot-1", 150.0, 1, 4, 0, 0);
         assertThrows(IllegalArgumentException.class, badCpu::validate);
     }
 
