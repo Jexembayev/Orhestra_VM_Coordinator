@@ -188,4 +188,12 @@ public interface TaskRepository {
      * Update the status of a task.
      */
     boolean updateStatus(String taskId, TaskStatus status);
+
+    /**
+     * Find all RUNNING tasks currently assigned to a specific SPOT.
+     *
+     * @param spotId the SPOT ID
+     * @return list of running tasks
+     */
+    List<Task> findRunningBySpotId(String spotId);
 }

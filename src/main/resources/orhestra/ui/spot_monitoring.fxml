@@ -8,12 +8,16 @@
       styleClass="pad">
 
     <!-- Stats header -->
-    <HBox spacing="12" alignment="CENTER_LEFT" styleClass="stats-bar">
+    <HBox spacing="16" alignment="CENTER_LEFT" styleClass="stats-bar">
         <Label text="SPOT Workers" styleClass="section-header"/>
         <Region HBox.hgrow="ALWAYS"/>
         <VBox alignment="CENTER" spacing="1">
             <Label fx:id="lblTotal" text="0" styleClass="stat-value"/>
             <Label text="всего" styleClass="stat-label"/>
+        </VBox>
+        <VBox alignment="CENTER" spacing="1">
+            <Label fx:id="lblUp" text="0" styleClass="stat-value" style="-fx-text-fill: #2e9e4f;"/>
+            <Label text="UP" styleClass="stat-label"/>
         </VBox>
     </HBox>
 
@@ -40,19 +44,11 @@
         </VBox>
     </TitledPane>
 
-    <!-- Table -->
-    <TableView fx:id="table" VBox.vgrow="ALWAYS">
-        <placeholder>
-            <Label text="Нет подключённых SPOT-воркеров. Ожидание heartbeat…"
-                   styleClass="muted" style="-fx-font-size: 14;"/>
-        </placeholder>
-        <columns>
-            <TableColumn fx:id="colId"       text="ID"           prefWidth="120"/>
-            <TableColumn fx:id="colAddr"     text="Address"      prefWidth="200"/>
-            <TableColumn fx:id="colCPU"      text="CPU"          prefWidth="160"/>
-            <TableColumn fx:id="colTasks"    text="Tasks"        prefWidth="80"/>
-            <TableColumn fx:id="colBeat"     text="Last Beat"    prefWidth="120"/>
-            <TableColumn fx:id="colStatus"   text="Status"       prefWidth="120"/>
-        </columns>
-    </TableView>
+    <!-- Cards grid -->
+    <ScrollPane VBox.vgrow="ALWAYS" fitToWidth="true" styleClass="spots-scroll">
+        <FlowPane fx:id="cardsPane" hgap="12" vgap="12" styleClass="spots-scroll">
+            <padding><Insets top="8" right="8" bottom="8" left="8"/></padding>
+        </FlowPane>
+    </ScrollPane>
+
 </VBox>

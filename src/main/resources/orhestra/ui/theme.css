@@ -375,3 +375,26 @@
 .spots-scroll .viewport {
     -fx-background-color: transparent;
 }
+
+/* Card separator */
+.spot-card .separator .line {
+    -fx-border-color: #333;
+}
+
+/* Card task row */
+.spot-task-row {
+    -fx-padding: 2 0 2 0;
+}
+
+/* RAM bar - reuses cpu bar classes, add ram-specific override */
+.ram-low .bar {
+    -fx-background-color: #2e9e4f;
+}
+
+.ram-medium .bar {
+    -fx-background-color: #e6a817;
+}
+
+.ram-high .bar {
+    -fx-background-color: #d64545;
+}

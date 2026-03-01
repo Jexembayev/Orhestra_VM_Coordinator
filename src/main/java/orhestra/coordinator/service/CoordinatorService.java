@@ -118,7 +118,10 @@ public class CoordinatorService {
                 spot.status() != null ? spot.status().name() : "DOWN",
                 spot.lastHeartbeat(),
                 spot.totalCores(),
-                spot.ipAddress());
+                spot.ipAddress(),
+                spot.ramUsedMb(),
+                spot.ramTotalMb(),
+                spot.maxConcurrent());
     }
 
     public void stop() {

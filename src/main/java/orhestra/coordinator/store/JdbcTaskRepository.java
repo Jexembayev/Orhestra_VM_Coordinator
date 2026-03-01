@@ -801,6 +801,18 @@ public class JdbcTaskRepository implements TaskRepository {
         }
     }
 
+    @Override
+    public List<Task> findRunningBySpotId(String spotId) {
+        String sql = "SELECT * FROM tasks WHERE assigned_to = ? AND status = 'RUNNING' ORDER BY started_at";
+        try (Connection conn = db.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, spotId);
+            return executeQuery(ps);
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to find running tasks for spot: " + spotId, e);
+        }
+    }
+
     // Helper methods
 
     private List<Task> executeQuery(PreparedStatement ps) throws SQLException {

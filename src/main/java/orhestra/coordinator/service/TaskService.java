@@ -277,6 +277,13 @@ public class TaskService {
     }
 
     /**
+     * Find all RUNNING tasks currently assigned to a specific SPOT.
+     */
+    public List<Task> findRunningForSpot(String spotId) {
+        return taskRepository.findRunningBySpotId(spotId);
+    }
+
+    /**
      * Free all tasks assigned to a SPOT (when SPOT goes offline).
      */
     public int freeTasksForSpot(String spotId) {
