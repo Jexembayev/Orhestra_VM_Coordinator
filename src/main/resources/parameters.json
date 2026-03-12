@@ -4,7 +4,12 @@
       "id": "algorithm",
       "label": "Algorithm",
       "parameters": [
-        { "id": "name", "label": "Name", "type": "ENUM", "options": ["DE", "PSO", "GWO"] }
+        {
+          "id": "function",
+          "label": "Test Function",
+          "type": "ENUM",
+          "options": ["sphere", "ackley", "rosenbrock", "rastrigin", "michalewicz"]
+        }
       ]
     },
     {
