@@ -11,6 +11,8 @@ import orhestra.cloud.config.IniLoader;
 import orhestra.cloud.creator.VMCreator;
 import orhestra.coordinator.model.CloudInstanceRow;
 import orhestra.coordinator.model.EnvState;
+import orhestra.coordinator.server.CoordinatorNettyServer;
+import orhestra.coordinator.service.AutoScaler;
 import orhestra.coordinator.service.CloudProbe;
 import orhestra.coordinator.service.CoordinatorService;
 import orhestra.coordinator.service.OvpnService;
@@ -221,6 +223,11 @@ public class CloudController {
             this.cloudProbe = new CloudProbe(auth);
             this.ovpnSvc = new OvpnService(auth, cfg);
 
+            // If coordinator is already running, reconfigure AutoScaler with fresh INI
+            if (coordinatorVpnIp != null) {
+                startAutoScalerIfReady("http://" + coordinatorVpnIp + ":8081");
+            }
+
             // сразу проверим доступность облака (тихая проверка)
             env.setCloud(cloudProbe.quickPing(cfg.folderId));
             updateButtons();
@@ -344,10 +351,40 @@ public class CloudController {
             if (labelCoordUrl != null)
                 labelCoordUrl.setText(coordUrl);
             setStatus("✅ Координатор запущен на 8081 (VPN IP: " + coordinatorVpnIp + ")");
+
+            // Start AutoScaler if INI is loaded
+            startAutoScalerIfReady(coordUrl);
         } else {
             coordinatorVpnIp = null;
             env.setCoord(false);
             setStatus("❌ Координатор не запустился");
+        }
+    }
+
+    /** Create/reconfigure the AutoScaler once both coordinator and INI are ready. */
+    private void startAutoScalerIfReady(String coordUrl) {
+        var deps = CoordinatorNettyServer.tryDependencies();
+        if (deps == null) return;
+
+        try {
+            String iniPath = iniPathField.getText();
+            if (iniPath == null || iniPath.isBlank()) return;
+
+            var vmCfgOpt = IniLoader.loadVmConfig(new File(iniPath));
+            if (vmCfgOpt.isEmpty()) return;
+
+            ensureAuth();
+
+            // Stop old scaler if any
+            AutoScaler existing = CoordinatorNettyServer.autoScaler();
+            if (existing != null) existing.stop();
+
+            AutoScaler scaler = new AutoScaler(deps.taskService());
+            scaler.configure(auth, vmCfgOpt.get(), coordUrl);
+            scaler.start();
+            CoordinatorNettyServer.setAutoScaler(scaler);
+        } catch (Exception e) {
+            // Non-critical: auto-scaler won't run but coordinator is fine
         }
     }
 

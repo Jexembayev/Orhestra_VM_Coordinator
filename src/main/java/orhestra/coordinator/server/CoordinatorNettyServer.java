@@ -14,6 +14,7 @@ import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import orhestra.coordinator.config.CoordinatorConfig;
 import orhestra.coordinator.config.Dependencies;
+import orhestra.coordinator.service.AutoScaler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +35,13 @@ public final class CoordinatorNettyServer {
 
     // ========== Dependency Container ==========
     private static volatile Dependencies dependencies;
+
+    // ========== Auto-Scaler ==========
+    private static volatile AutoScaler autoScaler;
+
+    public static AutoScaler autoScaler() { return autoScaler; }
+
+    public static void setAutoScaler(AutoScaler scaler) { autoScaler = scaler; }
 
     // ========== Server State ==========
     private static volatile boolean running = false;
@@ -221,6 +229,12 @@ public final class CoordinatorNettyServer {
             if (bossGroup != null) {
                 bossGroup.shutdownGracefully();
                 bossGroup = null;
+            }
+
+            // Stop auto-scaler
+            if (autoScaler != null) {
+                autoScaler.stop();
+                autoScaler = null;
             }
 
             // Close dependencies (database connections)

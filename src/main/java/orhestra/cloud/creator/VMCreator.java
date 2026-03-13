@@ -22,10 +22,21 @@ public class VMCreator {
                 this.auth = auth;
         }
 
+        /** Create exactly 1 SPOT VM regardless of cfg.vmCount (used by AutoScaler). */
+        public void createOne(IniLoader.VmConfig cfg, String coordinatorUrl)
+                        throws InvalidProtocolBufferException, InterruptedException {
+                createMany(cfg, coordinatorUrl, 1);
+        }
+
         public void createMany(IniLoader.VmConfig cfg, String coordinatorUrl)
                         throws InvalidProtocolBufferException, InterruptedException {
+                createMany(cfg, coordinatorUrl, cfg.vmCount);
+        }
 
-                for (int i = 0; i < cfg.vmCount; i++) {
+        public void createMany(IniLoader.VmConfig cfg, String coordinatorUrl, int count)
+                        throws InvalidProtocolBufferException, InterruptedException {
+
+                for (int i = 0; i < count; i++) {
                         String name = cfg.vmName + "-" + UUID.randomUUID();
 
                         // Build /etc/default/spot-agent env file

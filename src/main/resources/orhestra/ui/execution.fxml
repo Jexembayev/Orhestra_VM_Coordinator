@@ -29,6 +29,19 @@
         </VBox>
     </HBox>
 
+    <!-- Auto-Scaler Banner — shown when pending tasks wait too long without a SPOT -->
+    <HBox fx:id="autoScalerBanner" spacing="10" alignment="CENTER_LEFT"
+          visible="false" managed="false"
+          style="-fx-background-color: #1a3050; -fx-background-radius: 6; -fx-padding: 8 14 8 14; -fx-border-color: #3a7bd5; -fx-border-radius: 6; -fx-border-width: 1;">
+        <Label fx:id="autoScalerIcon" text="⏳" style="-fx-font-size: 16;"/>
+        <VBox spacing="3" HBox.hgrow="ALWAYS">
+            <Label fx:id="autoScalerMsg" text=""
+                   style="-fx-text-fill: #d0e8ff; -fx-font-size: 13; -fx-font-weight: bold;"/>
+            <ProgressBar fx:id="autoScalerProgress" prefWidth="380" prefHeight="6" progress="0"
+                         style="-fx-accent: #3a7bd5;"/>
+        </VBox>
+    </HBox>
+
     <!-- SPOT Workers cards (always visible, no collapsible) -->
     <VBox spacing="6" styleClass="spots-section">
         <padding><Insets top="6" right="6" bottom="6" left="6"/></padding>

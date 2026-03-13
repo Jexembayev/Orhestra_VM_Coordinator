@@ -17,6 +17,7 @@ import orhestra.coordinator.model.Spot;
 import orhestra.coordinator.model.Task;
 import orhestra.coordinator.model.TaskStatus;
 import orhestra.coordinator.server.CoordinatorNettyServer;
+import orhestra.coordinator.service.AutoScaler;
 import orhestra.coordinator.simulation.SimulationService;
 
 import java.io.File;
@@ -77,6 +78,16 @@ public class ExecutionController {
     private Timer retryTimer;
     private SimulationService simulationService;
     private final RecentJsonManager recentJson = new RecentJsonManager();
+
+    // ---- Auto-Scaler banner + ghost card ----
+    @FXML private HBox          autoScalerBanner;
+    @FXML private Label         autoScalerIcon;
+    @FXML private Label         autoScalerMsg;
+    @FXML private ProgressBar   autoScalerProgress;
+
+    /** Ghost card shown in the SPOT Workers section when a new VM is being created. */
+    private VBox                pendingSpotCard;
+    private Timer               autoScalerConnectTimer;
 
     // Guards preventing concurrent DB loads from piling up on the FX thread
     private final java.util.concurrent.atomic.AtomicBoolean tasksLoading = new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -175,6 +186,15 @@ public class ExecutionController {
         AppBus.onTasksChanged(() -> Platform.runLater(this::refreshTasks));
         AppBus.onSpotsChanged(() -> Platform.runLater(this::refreshSpots));
 
+        // ---- Auto-Scaler — connect callback if already running ----
+        connectAutoScaler();
+        // Re-check when tasks or spots change (AutoScaler may be created after this controller)
+        AppBus.onTasksChanged(this::connectAutoScaler);
+        AppBus.onSpotsChanged(this::connectAutoScaler);
+        // Fallback: poll every 2 seconds until connected (handles the case when tasks
+        // are created before any event fires, e.g. right after coordinator start)
+        scheduleAutoScalerConnect();
+
         // Initial load
         refreshAll();
     }
@@ -261,7 +281,10 @@ public class ExecutionController {
 
                 Platform.runLater(() -> {
                     if (spotCards != null) {
-                        spotCards.getChildren().setAll(cards); // atomic swap — no empty-frame flash
+                        // Append ghost card at the end if AutoScaler is creating a VM
+                        List<javafx.scene.Node> allCards = new ArrayList<>(cards);
+                        if (pendingSpotCard != null) allCards.add(pendingSpotCard);
+                        spotCards.getChildren().setAll(allCards); // atomic swap — no flash
                     }
                     if (lblSpotCount != null) {
                         lblSpotCount.setText("Spots: " + spotCount);
@@ -862,6 +885,144 @@ public class ExecutionController {
             retryTimer.cancel();
             retryTimer = null;
         }
+    }
+
+    // ================== Auto-Scaler ==================
+
+    /**
+     * Connect to the AutoScaler if it has been started by CloudController.
+     * Safe to call multiple times — idempotent.
+     */
+    private void connectAutoScaler() {
+        AutoScaler scaler = CoordinatorNettyServer.autoScaler();
+        if (scaler != null) {
+            scaler.setUiCallback(this::applyAutoScalerState);
+            // Cancel polling once connected
+            if (autoScalerConnectTimer != null) {
+                autoScalerConnectTimer.cancel();
+                autoScalerConnectTimer = null;
+            }
+        }
+    }
+
+    /**
+     * Poll every 2 seconds until the AutoScaler is available.
+     * This handles the case where tasks are created before any AppBus event fires
+     * (e.g. right after coordinator start, before any SPOT registers).
+     */
+    private void scheduleAutoScalerConnect() {
+        if (autoScalerConnectTimer != null) return;
+        autoScalerConnectTimer = new Timer("autoscaler-connect", true);
+        autoScalerConnectTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                AutoScaler scaler = CoordinatorNettyServer.autoScaler();
+                if (scaler != null) {
+                    scaler.setUiCallback(ExecutionController.this::applyAutoScalerState);
+                    cancel(); // stop polling
+                    autoScalerConnectTimer = null;
+                }
+            }
+        }, 500, 2000);
+    }
+
+    private void applyAutoScalerState(AutoScaler.State state) {
+        // ── Banner ──────────────────────────────────────────────
+        if (autoScalerBanner != null) {
+            boolean show = state.phase() != AutoScaler.Phase.IDLE;
+            autoScalerBanner.setVisible(show);
+            autoScalerBanner.setManaged(show);
+
+            if (show) {
+                String icon = switch (state.phase()) {
+                    case WAITING  -> "⏳";
+                    case CREATING -> "🔧";
+                    case COOLDOWN -> "🚀";
+                    default       -> "ℹ";
+                };
+                if (autoScalerIcon != null) autoScalerIcon.setText(icon);
+                if (autoScalerMsg  != null) autoScalerMsg.setText(state.message());
+
+                if (autoScalerProgress != null) {
+                    boolean showBar = state.phase() == AutoScaler.Phase.WAITING
+                            && state.thresholdSec() > 0;
+                    autoScalerProgress.setVisible(showBar);
+                    autoScalerProgress.setManaged(showBar);
+                    if (showBar) {
+                        autoScalerProgress.setProgress(
+                                (double) state.waitedSec() / state.thresholdSec());
+                    }
+                }
+            }
+        }
+
+        // ── Ghost SPOT card ──────────────────────────────────────
+        boolean needGhost = state.phase() == AutoScaler.Phase.CREATING
+                || state.phase() == AutoScaler.Phase.COOLDOWN;
+
+        if (needGhost) {
+            if (pendingSpotCard == null) {
+                pendingSpotCard = buildGhostSpotCard(state.message());
+                if (spotCards != null
+                        && !spotCards.getChildren().contains(pendingSpotCard)) {
+                    spotCards.getChildren().add(pendingSpotCard);
+                }
+            } else {
+                // Update message label in existing card
+                pendingSpotCard.getChildren().stream()
+                        .filter(n -> n instanceof Label && "ghost-msg".equals(n.getId()))
+                        .findFirst()
+                        .ifPresent(n -> ((Label) n).setText(state.message()));
+            }
+        } else {
+            if (pendingSpotCard != null && spotCards != null) {
+                spotCards.getChildren().remove(pendingSpotCard);
+            }
+            pendingSpotCard = null;
+        }
+    }
+
+    /** Semi-transparent grey card shown while a new SPOT VM is being provisioned. */
+    private VBox buildGhostSpotCard(String msg) {
+        VBox card = new VBox(6);
+        card.setPrefWidth(270);
+        card.setMinWidth(270);
+        card.setMaxWidth(270);
+        card.setStyle(
+                "-fx-background-color: #2a2a3a; -fx-border-color: #555577; " +
+                "-fx-border-radius: 8; -fx-background-radius: 8; " +
+                "-fx-border-width: 1.5; -fx-opacity: 0.82;");
+        card.setPadding(new Insets(10, 12, 10, 12));
+
+        // Header
+        HBox header = new HBox(8);
+        header.setAlignment(Pos.CENTER_LEFT);
+        Label spinnerLabel = new Label("⚙");
+        spinnerLabel.setStyle("-fx-font-size: 18; -fx-text-fill: #aaaadd;");
+        Label titleLabel = new Label("Новый SPOT");
+        titleLabel.setStyle("-fx-font-size: 13; -fx-font-weight: bold; -fx-text-fill: #ccccee;");
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+        Label statusBadge = new Label("● СОЗДАЁТСЯ");
+        statusBadge.setStyle("-fx-font-size: 10; -fx-text-fill: #8888ff; -fx-font-weight: bold;");
+        header.getChildren().addAll(spinnerLabel, titleLabel, sp, statusBadge);
+
+        // Divider
+        javafx.scene.shape.Line line = new javafx.scene.shape.Line(0, 0, 246, 0);
+        line.setStyle("-fx-stroke: #444466;");
+
+        // Message label
+        Label msgLabel = new Label(msg);
+        msgLabel.setId("ghost-msg");
+        msgLabel.setWrapText(true);
+        msgLabel.setStyle("-fx-text-fill: #9999bb; -fx-font-size: 11;");
+
+        // Animated dots hint
+        Label hint = new Label("Идёт подготовка облачного инстанса…");
+        hint.setStyle("-fx-text-fill: #666688; -fx-font-size: 10;");
+
+        card.getChildren().addAll(header, line, msgLabel, hint);
+        return card;
     }
 
     // ================== Helpers ==================
