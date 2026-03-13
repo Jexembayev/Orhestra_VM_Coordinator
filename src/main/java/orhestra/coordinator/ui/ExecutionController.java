@@ -78,6 +78,10 @@ public class ExecutionController {
     private SimulationService simulationService;
     private final RecentJsonManager recentJson = new RecentJsonManager();
 
+    // Guards preventing concurrent DB loads from piling up on the FX thread
+    private final java.util.concurrent.atomic.AtomicBoolean tasksLoading = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private final java.util.concurrent.atomic.AtomicBoolean spotsLoading  = new java.util.concurrent.atomic.AtomicBoolean(false);
+
     @FXML
     private void initialize() {
         // ---- Task table columns ----
@@ -184,62 +188,92 @@ public class ExecutionController {
 
     @FXML
     public void refreshTasks() {
-        var deps = CoordinatorNettyServer.tryDependencies();
-        if (deps == null) {
-            taskTable.getItems().clear();
-            scheduleRetry();
-            return;
-        }
-        cancelRetryTimer();
+        // Skip if a load is already in progress to avoid DB query pile-up on FX thread
+        if (!tasksLoading.compareAndSet(false, true)) return;
 
-        List<TaskInfo> items = deps.taskService().findRecent(200)
-                .stream().map(this::toTaskInfo).collect(Collectors.toList());
+        Thread t = new Thread(() -> {
+            try {
+                var deps = CoordinatorNettyServer.tryDependencies();
+                if (deps == null) {
+                    Platform.runLater(() -> {
+                        taskTable.getItems().clear();
+                        scheduleRetry();
+                    });
+                    return;
+                }
+                // DB work on background thread
+                List<TaskInfo> items = deps.taskService().findRecent(200)
+                        .stream().map(this::toTaskInfo).collect(Collectors.toList());
 
-        taskTable.getItems().setAll(items);
-        updateStats(items);
-        taskTable.refresh();
+                // Apply to UI on FX thread — fast, no DB calls here
+                Platform.runLater(() -> {
+                    cancelRetryTimer();
+                    taskTable.getItems().setAll(items);
+                    updateStats(items);
+                    taskTable.refresh();
+                });
+            } catch (Exception ignored) {
+            } finally {
+                tasksLoading.set(false);
+            }
+        }, "refresh-tasks");
+        t.setDaemon(true);
+        t.start();
     }
 
     private void refreshSpots() {
-        Dependencies deps = CoordinatorNettyServer.tryDependencies();
-        if (deps == null)
-            return;
+        // Skip if a load is already in progress
+        if (!spotsLoading.compareAndSet(false, true)) return;
 
-        // Sort by registration time (then ID fallback) so cards don't jump on heartbeat updates
-        List<Spot> spots = deps.spotService().findAll().stream()
-                .sorted(java.util.Comparator
-                        .comparing((Spot s) -> s.registeredAt() != null ? s.registeredAt() : Instant.EPOCH)
-                        .thenComparing(Spot::id))
-                .collect(Collectors.toList());
+        Thread t = new Thread(() -> {
+            try {
+                Dependencies deps = CoordinatorNettyServer.tryDependencies();
+                if (deps == null) return;
 
-        // Compute per-spot task stats from loaded tasks
-        java.util.Map<String, SpotTaskStats> statsMap = new java.util.HashMap<>();
-        List<Task> allTasks = deps.taskService().findRecent(500);
-        for (Task t : allTasks) {
-            String sid = t.assignedTo();
-            if (sid == null)
-                continue;
-            SpotTaskStats prev = statsMap.getOrDefault(sid, new SpotTaskStats(0, 0, 0));
-            int r = prev.running(), d = prev.done(), f = prev.failed();
-            if (t.status() == TaskStatus.RUNNING)
-                r++;
-            else if (t.status() == TaskStatus.DONE)
-                d++;
-            else if (t.status() == TaskStatus.FAILED)
-                f++;
-            statsMap.put(sid, new SpotTaskStats(r, d, f));
-        }
+                // Sort by registration time so cards don't jump on heartbeat updates
+                List<Spot> spots = deps.spotService().findAll().stream()
+                        .sorted(java.util.Comparator
+                                .comparing((Spot s) -> s.registeredAt() != null ? s.registeredAt() : Instant.EPOCH)
+                                .thenComparing(Spot::id))
+                        .collect(Collectors.toList());
 
-        if (spotCards != null) {
-            spotCards.getChildren().clear();
-            for (Spot spot : spots) {
-                SpotTaskStats stats = statsMap.getOrDefault(spot.id(), new SpotTaskStats(0, 0, 0));
-                spotCards.getChildren().add(buildSpotCard(spot, stats));
+                // Compute per-spot task stats (DB query on background thread)
+                java.util.Map<String, SpotTaskStats> statsMap = new java.util.HashMap<>();
+                List<Task> allTasks = deps.taskService().findRecent(500);
+                for (Task task : allTasks) {
+                    String sid = task.assignedTo();
+                    if (sid == null) continue;
+                    SpotTaskStats prev = statsMap.getOrDefault(sid, new SpotTaskStats(0, 0, 0));
+                    int r = prev.running(), d = prev.done(), f = prev.failed();
+                    if (task.status() == TaskStatus.RUNNING)      r++;
+                    else if (task.status() == TaskStatus.DONE)    d++;
+                    else if (task.status() == TaskStatus.FAILED)  f++;
+                    statsMap.put(sid, new SpotTaskStats(r, d, f));
+                }
+
+                // Build cards off-thread, then swap atomically on FX thread (no flash)
+                List<javafx.scene.Node> cards = new ArrayList<>();
+                for (Spot spot : spots) {
+                    SpotTaskStats stats = statsMap.getOrDefault(spot.id(), new SpotTaskStats(0, 0, 0));
+                    cards.add(buildSpotCard(spot, stats));
+                }
+                final int spotCount = spots.size();
+
+                Platform.runLater(() -> {
+                    if (spotCards != null) {
+                        spotCards.getChildren().setAll(cards); // atomic swap — no empty-frame flash
+                    }
+                    if (lblSpotCount != null) {
+                        lblSpotCount.setText("Spots: " + spotCount);
+                    }
+                });
+            } catch (Exception ignored) {
+            } finally {
+                spotsLoading.set(false);
             }
-        }
-        if (lblSpotCount != null) {
-            lblSpotCount.setText("Spots: " + spots.size());
-        }
+        }, "refresh-spots");
+        t.setDaemon(true);
+        t.start();
     }
 
     // ================== Spot Cards ==================
