@@ -221,7 +221,8 @@ public class TaskMonitoringController {
                 task.finishedAt(),
                 task.inputIterations(),
                 task.inputAgents(),
-                task.inputDimension());
+                task.inputDimension(),
+                task.result());
     }
 
     /**

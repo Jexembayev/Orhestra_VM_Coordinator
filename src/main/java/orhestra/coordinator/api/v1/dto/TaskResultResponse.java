@@ -44,16 +44,29 @@ public record TaskResultResponse(
         Integer agents = task.inputAgents();
         Integer dimension = task.inputDimension();
 
-        // Fall back to payload parsing if fields are null (old tasks)
+        // Fall back to payload parsing if fields are null
         if (algorithm == null || iterations == null || agents == null || dimension == null) {
             try {
                 if (task.payload() != null && !task.payload().isBlank()) {
                     JsonNode root = MAPPER.readTree(task.payload());
 
+                    // New format: {"params":{"algorithm.function":"sphere","run.iterations":100,...}}
+                    JsonNode params = root.path("params");
+                    if (params.isObject()) {
+                        if (algorithm == null && params.has("algorithm.function"))
+                            algorithm = params.get("algorithm.function").asText();
+                        if (iterations == null && params.has("run.iterations"))
+                            iterations = params.get("run.iterations").asInt();
+                        if (agents == null && params.has("run.agents"))
+                            agents = params.get("run.agents").asInt();
+                        if (dimension == null && params.has("run.dimension"))
+                            dimension = params.get("run.dimension").asInt();
+                    }
+
+                    // Legacy format fallbacks
                     if (algorithm == null && root.has("alg") && !root.get("alg").isNull()) {
                         algorithm = root.get("alg").asText();
                     }
-
                     if (iterations == null) {
                         JsonNode iterNode = root.path("iterations");
                         if (iterNode.isObject() && iterNode.has("max")) {
@@ -62,11 +75,9 @@ public record TaskResultResponse(
                             iterations = iterNode.asInt();
                         }
                     }
-
                     if (agents == null && root.has("agents") && root.get("agents").isNumber()) {
                         agents = root.get("agents").asInt();
                     }
-
                     if (dimension == null && root.has("dimension") && root.get("dimension").isNumber()) {
                         dimension = root.get("dimension").asInt();
                     }

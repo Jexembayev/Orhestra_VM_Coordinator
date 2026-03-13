@@ -82,6 +82,7 @@
                 <Button text="Выбрать JSON…" onAction="#onAddJsonFile" styleClass="btn-primary"/>
                 <Button text="Загрузить выбранный" onAction="#handleLoadSelectedJson" styleClass="btn-primary"/>
                 <Region HBox.hgrow="ALWAYS"/>
+                <Button text="⬇ Экспорт CSV" onAction="#handleExportCsv" styleClass="btn-primary"/>
                 <Button text="Обновить" onAction="#refreshTasks" styleClass="btn-primary"/>
             </HBox>
         </VBox>
@@ -104,6 +105,7 @@
             <TableColumn fx:id="runtimeColumn"   text="Время"     prefWidth="80"/>
             <TableColumn fx:id="statusColumn"    text="Статус"    prefWidth="90"/>
             <TableColumn fx:id="progressColumn"  text="Прогресс"  prefWidth="80"/>
+            <TableColumn fx:id="foptColumn"      text="Fopt"      prefWidth="100"/>
         </columns>
     </TableView>
 </VBox>

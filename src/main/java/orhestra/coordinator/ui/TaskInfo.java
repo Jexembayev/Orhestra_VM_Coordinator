@@ -18,5 +18,6 @@ public record TaskInfo(
                 Instant finishedAt,
                 Integer inputIterations,
                 Integer inputAgents,
-                Integer inputDimension) {
+                Integer inputDimension,
+                String result) {  // raw JSON from DB: bestPos array e.g. "[0.12, -0.34, ...]"
 }

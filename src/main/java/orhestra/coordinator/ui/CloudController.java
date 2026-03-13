@@ -52,6 +52,10 @@ public class CloudController {
     @FXML
     private Button btnCreateSpot;
     @FXML
+    private javafx.scene.control.ProgressIndicator createSpinner;
+    @FXML
+    private Label createProgressLabel;
+    @FXML
     private TextArea coordLogArea;
 
     @FXML
@@ -525,13 +529,31 @@ public class CloudController {
         updateStatusAsync(startMsg);
         if (btnCreateSpot != null)
             btnCreateSpot.setDisable(true);
+        showSpinner(true, startMsg);
         new Thread(() -> {
             try {
                 job.run();
             } finally {
-                javafx.application.Platform.runLater(this::updateButtons);
+                javafx.application.Platform.runLater(() -> {
+                    showSpinner(false, null);
+                    updateButtons();
+                });
             }
         }, "cloud-ui-worker").start();
+    }
+
+    private void showSpinner(boolean visible, String msg) {
+        javafx.application.Platform.runLater(() -> {
+            if (createSpinner != null) {
+                createSpinner.setVisible(visible);
+                createSpinner.setManaged(visible);
+            }
+            if (createProgressLabel != null) {
+                createProgressLabel.setVisible(visible && msg != null);
+                createProgressLabel.setManaged(visible && msg != null);
+                if (msg != null) createProgressLabel.setText(msg);
+            }
+        });
     }
 
     private void updateStatusAsync(String msg) {

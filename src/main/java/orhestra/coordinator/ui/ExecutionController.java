@@ -10,6 +10,9 @@ import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import orhestra.coordinator.config.Dependencies;
 import orhestra.coordinator.core.AppBus;
+import orhestra.coordinator.api.v1.dto.CreateJobRequest;
+import orhestra.coordinator.model.ArtifactRef;
+import orhestra.coordinator.model.Job;
 import orhestra.coordinator.model.Spot;
 import orhestra.coordinator.model.Task;
 import orhestra.coordinator.model.TaskStatus;
@@ -43,6 +46,11 @@ public class ExecutionController {
     private TableColumn<TaskInfo, String> agentsColumn, dimensionColumn;
     @FXML
     private TableColumn<TaskInfo, String> spotIdColumn;
+    @FXML
+    private TableColumn<TaskInfo, String> foptColumn;
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper PAYLOAD_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
 
     // ---- Stats ----
     @FXML
@@ -126,6 +134,11 @@ public class ExecutionController {
         progressColumn.setCellValueFactory(c -> new SimpleStringProperty(
                 calcProgress(c.getValue().status(), c.getValue().payload(), c.getValue().iter())));
 
+        if (foptColumn != null) {
+            foptColumn.setCellValueFactory(c -> new SimpleStringProperty(
+                    c.getValue().fopt() != null ? String.format("%.6g", c.getValue().fopt()) : "—"));
+        }
+
         // ---- Simulation spinner ----
         if (simWorkers != null) {
             simWorkers.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 200, 20));
@@ -192,7 +205,12 @@ public class ExecutionController {
         if (deps == null)
             return;
 
-        List<Spot> spots = deps.spotService().findAll();
+        // Sort by registration time (then ID fallback) so cards don't jump on heartbeat updates
+        List<Spot> spots = deps.spotService().findAll().stream()
+                .sorted(java.util.Comparator
+                        .comparing((Spot s) -> s.registeredAt() != null ? s.registeredAt() : Instant.EPOCH)
+                        .thenComparing(Spot::id))
+                .collect(Collectors.toList());
 
         // Compute per-spot task stats from loaded tasks
         java.util.Map<String, SpotTaskStats> statsMap = new java.util.HashMap<>();
@@ -455,15 +473,44 @@ public class ExecutionController {
 
     private TaskInfo toTaskInfo(Task task) {
         String algDisplay = task.algorithm();
+        Integer iters     = task.inputIterations();
+        Integer agents    = task.inputAgents();
+        Integer dim       = task.inputDimension();
+
+        // Parse new payload format: {"params":{"algorithm.function":"sphere","run.iterations":100,...}}
+        // algColumn shows the algorithm name (e.g. COA), funcColumn shows algorithm.function (e.g. sphere)
+        try {
+            if (task.payload() != null && !task.payload().isBlank()) {
+                com.fasterxml.jackson.databind.JsonNode root = PAYLOAD_MAPPER.readTree(task.payload());
+                com.fasterxml.jackson.databind.JsonNode params = root.path("params");
+                if (params.isObject()) {
+                    if (iters  == null && params.has("run.iterations")) iters  = params.get("run.iterations").asInt();
+                    if (agents == null && params.has("run.agents"))     agents = params.get("run.agents").asInt();
+                    if (dim    == null && params.has("run.dimension"))  dim    = params.get("run.dimension").asInt();
+                }
+                // Derive algorithm name from artifact key (e.g. "coa-algo.jar" → "COA")
+                if ((algDisplay == null || algDisplay.isBlank()) && root.has("artifactKey")) {
+                    String key = root.get("artifactKey").asText("");
+                    String fname = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
+                    fname = fname.replaceAll("(?i)-jar-with-dependencies\\.jar$", "")
+                                 .replaceAll("(?i)\\.jar$", "");
+                    if (fname.contains("-")) fname = fname.substring(0, fname.indexOf('-'));
+                    if (!fname.isBlank()) algDisplay = fname.toUpperCase();
+                }
+            }
+        } catch (Exception ignored) {}
+
         if (algDisplay == null || algDisplay.isBlank())
             algDisplay = extractAlg(task.payload());
+
         return new TaskInfo(
                 task.id(), algDisplay,
                 task.status() != null ? task.status().name() : "NEW",
                 task.iter(), task.runtimeMs(), task.fopt(),
                 task.payload(), task.assignedTo(),
                 task.startedAt(), task.finishedAt(),
-                task.inputIterations(), task.inputAgents(), task.inputDimension());
+                iters, agents, dim,
+                task.result());
     }
 
     // ================== Simulation ==================
@@ -573,8 +620,39 @@ public class ExecutionController {
             com.fasterxml.jackson.databind.ObjectMapper M = new com.fasterxml.jackson.databind.ObjectMapper();
             var root = M.readTree(txt);
 
-            List<Task> tasksToCreate = new ArrayList<>();
             var deps = CoordinatorNettyServer.dependencies();
+
+            // New-style Job JSON for /api/v1/jobs (dynamic params + S3 artifact).
+            // Detect by presence of artifactBucket + artifactKey + parameters.
+            if (root.has("artifactBucket") && root.has("artifactKey") && root.has("parameters")) {
+                CreateJobRequest req = M.treeToValue(root, CreateJobRequest.class);
+                req.validate();
+
+                ArtifactRef artifact = new ArtifactRef(
+                        req.artifactBucket(),
+                        req.artifactKey(),
+                        req.artifactEndpoint());
+
+                Job job = deps.jobService().createJob(
+                        artifact,
+                        req.mainClass(),
+                        req.config(),
+                        req.payloads());
+
+                AppBus.fireTasksChanged();
+                refreshTasks();
+
+                new Alert(Alert.AlertType.INFORMATION,
+                        "Создан job: " + job.id() + "\nЗадач: " + job.totalTasks(),
+                        ButtonType.OK).showAndWait();
+
+                recentJson.addPath(f.getAbsolutePath());
+                refreshJsonCombo();
+                return;
+            }
+
+            // Legacy task JSON formats (direct task creation).
+            List<Task> tasksToCreate = new ArrayList<>();
 
             if (root.has("algorithms")) {
                 var algs = M.convertValue(root.get("algorithms"),
@@ -646,6 +724,88 @@ public class ExecutionController {
         }
     }
 
+    // ================== CSV Export ==================
+
+    @FXML
+    private void handleExportCsv() {
+        var items = taskTable.getItems();
+        if (items == null || items.isEmpty()) {
+            new Alert(Alert.AlertType.WARNING, "Нет задач для экспорта.", ButtonType.OK).showAndWait();
+            return;
+        }
+
+        javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
+        fc.setTitle("Сохранить результаты");
+        fc.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("CSV files", "*.csv"));
+        fc.setInitialFileName("orhestra_results.csv");
+        File out = fc.showSaveDialog(taskTable.getScene().getWindow());
+        if (out == null) return;
+
+        try (java.io.PrintWriter pw = new java.io.PrintWriter(
+                new java.io.OutputStreamWriter(new java.io.FileOutputStream(out), java.nio.charset.StandardCharsets.UTF_8))) {
+
+            // BOM for Excel UTF-8 compatibility
+            pw.print('\uFEFF');
+            pw.println("task_id,algorithm,function,iterations_param,agents,dimension," +
+                       "spot,runtime_ms,status,iter_actual,fopt,best_position");
+
+            for (TaskInfo t : items) {
+                pw.println(String.join(",",
+                        csvEsc(t.id()),
+                        csvEsc(t.algId()),
+                        csvEsc(extractFunc(t.payload())),
+                        t.inputIterations() != null ? String.valueOf(t.inputIterations()) : "",
+                        t.inputAgents()     != null ? String.valueOf(t.inputAgents())     : "",
+                        t.inputDimension()  != null ? String.valueOf(t.inputDimension())  : "",
+                        csvEsc(t.assignedTo()),
+                        t.runtimeMs() != null ? String.valueOf(t.runtimeMs()) : "",
+                        csvEsc(t.status()),
+                        t.iter()  != null ? String.valueOf(t.iter())  : "",
+                        t.fopt()  != null ? String.valueOf(t.fopt())  : "",
+                        csvEsc(formatBestPos(t.result()))
+                ));
+            }
+
+            new Alert(Alert.AlertType.INFORMATION,
+                    "Экспортировано " + items.size() + " задач:\n" + out.getAbsolutePath(),
+                    ButtonType.OK).showAndWait();
+
+        } catch (Exception e) {
+            new Alert(Alert.AlertType.ERROR, "Ошибка экспорта: " + e.getMessage(), ButtonType.OK).showAndWait();
+        }
+    }
+
+    private static String csvEsc(String s) {
+        if (s == null || s.isBlank() || "—".equals(s)) return "";
+        if (s.contains(",") || s.contains("\"") || s.contains("\n")) {
+            return "\"" + s.replace("\"", "\"\"") + "\"";
+        }
+        return s;
+    }
+
+    /**
+     * Converts bestPos JSON array "[0.12, -0.34, 5.6]" to semicolon-separated
+     * "0.12; -0.34; 5.6" so it fits safely in a single CSV cell.
+     */
+    private static String formatBestPos(String resultJson) {
+        if (resultJson == null || resultJson.isBlank()) return "";
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = PAYLOAD_MAPPER.readTree(resultJson);
+            if (node.isArray()) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < node.size(); i++) {
+                    if (i > 0) sb.append("; ");
+                    sb.append(node.get(i).asText());
+                }
+                return sb.toString();
+            }
+            // non-array result: return raw (stripped of outer braces for readability)
+            return resultJson;
+        } catch (Exception e) {
+            return resultJson;
+        }
+    }
+
     // ================== Retry timer ==================
 
     private void scheduleRetry() {
@@ -695,43 +855,31 @@ public class ExecutionController {
     private static String formatRuntime(Long ms) {
         if (ms == null || ms <= 0)
             return "—";
-        long s = ms / 1000;
-        long m = s / 60;
-        long sec = s % 60;
-        return m > 0 ? m + "m " + sec + "s" : sec + "s";
+        return ms + " ms";
     }
 
     private static String extractAlg(String j) {
-        if (j == null || j.isBlank())
-            return "—";
+        if (j == null || j.isBlank()) return "—";
         try {
-            int i = j.indexOf("\"alg\"");
-            if (i < 0)
-                return "—";
-            int c = j.indexOf(':', i);
-            int q1 = j.indexOf('"', c);
-            int q2 = j.indexOf('"', q1 + 1);
-            if (q1 > 0 && q2 > q1)
-                return j.substring(q1 + 1, q2);
-        } catch (Exception e) {
-        }
+            com.fasterxml.jackson.databind.JsonNode root = PAYLOAD_MAPPER.readTree(j);
+            if (root.has("alg") && !root.get("alg").isNull())
+                return root.get("alg").asText("—");
+        } catch (Exception ignored) {}
         return "—";
     }
 
     private static String extractFunc(String j) {
-        if (j == null || j.isBlank())
-            return "—";
+        if (j == null || j.isBlank()) return "—";
         try {
-            int i = j.indexOf("\"func\"");
-            if (i < 0)
-                return "—";
-            int c = j.indexOf(':', i);
-            int q1 = j.indexOf('"', c);
-            int q2 = j.indexOf('"', q1 + 1);
-            if (q1 > 0 && q2 > q1)
-                return j.substring(q1 + 1, q2);
-        } catch (Exception e) {
-        }
+            com.fasterxml.jackson.databind.JsonNode root = PAYLOAD_MAPPER.readTree(j);
+            // New format: params["algorithm.function"]
+            com.fasterxml.jackson.databind.JsonNode params = root.path("params");
+            if (params.isObject() && params.has("algorithm.function"))
+                return params.get("algorithm.function").asText("—");
+            // Legacy format: "func" key
+            if (root.has("func") && !root.get("func").isNull())
+                return root.get("func").asText("—");
+        } catch (Exception ignored) {}
         return "—";
     }
 
@@ -750,45 +898,22 @@ public class ExecutionController {
     }
 
     private static Integer extractIterationsMax(String j) {
-        if (j == null)
-            return null;
+        if (j == null || j.isBlank()) return null;
         try {
-            int p = j.indexOf("\"iterations\"");
-            int bs = (p >= 0) ? p : j.indexOf("\"iterMax\"");
-            if (bs < 0)
-                return null;
-            int mk = j.indexOf("\"max\"", bs);
-            if (mk >= 0) {
-                int c = j.indexOf(':', mk);
-                int e = c < 0 ? -1 : findNumberEnd(j, c + 1);
-                if (e > 0) {
-                    String n = j.substring(c + 1, e).replaceAll("[^0-9]", "");
-                    if (!n.isEmpty())
-                        return Integer.parseInt(n);
-                }
-            }
-            int im = j.indexOf("\"iterMax\"");
-            if (im >= 0) {
-                int c = j.indexOf(':', im);
-                int e = c < 0 ? -1 : findNumberEnd(j, c + 1);
-                if (e > 0) {
-                    String n = j.substring(c + 1, e).replaceAll("[^0-9]", "");
-                    if (!n.isEmpty())
-                        return Integer.parseInt(n);
-                }
-            }
-        } catch (Exception e) {
-        }
+            com.fasterxml.jackson.databind.JsonNode root = PAYLOAD_MAPPER.readTree(j);
+            // New format: params["run.iterations"]
+            com.fasterxml.jackson.databind.JsonNode params = root.path("params");
+            if (params.isObject() && params.has("run.iterations"))
+                return params.get("run.iterations").asInt();
+            // Legacy: iterations.max
+            com.fasterxml.jackson.databind.JsonNode iterNode = root.path("iterations");
+            if (iterNode.isObject() && iterNode.has("max")) return iterNode.get("max").asInt();
+            if (iterNode.isNumber()) return iterNode.asInt();
+            // Legacy: iterMax
+            com.fasterxml.jackson.databind.JsonNode iterMax = root.path("iterMax");
+            if (iterMax.isNumber()) return iterMax.asInt();
+        } catch (Exception ignored) {}
         return null;
-    }
-
-    private static int findNumberEnd(String s, int from) {
-        int i = from;
-        while (i < s.length() && (Character.isWhitespace(s.charAt(i)) || s.charAt(i) == ':'))
-            i++;
-        while (i < s.length() && Character.isDigit(s.charAt(i)))
-            i++;
-        return i;
     }
 
     private static int parseIntOr(TextField tf, int fb) {
