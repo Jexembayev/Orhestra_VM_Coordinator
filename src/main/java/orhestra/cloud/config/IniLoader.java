@@ -10,7 +10,7 @@ import java.util.Optional;
 
 /**
  * Загружает настройки облака и ВМ из INI-файла.
- * Поддерживает секции [AUTH], [NETWORK], [VM], [SSH], [OVPN] (опц.).
+ * Поддерживает секции [AUTH], [NETWORK], [VM], [SSH], [OVPN] (опц.), [S3] (опц.), [COORDINATOR] (опц.).
  */
 public class IniLoader {
 
@@ -135,6 +135,12 @@ public class IniLoader {
                 cfg.s3SecretAccessKey = opt(s3, "secret_access_key");
             }
 
+            // COORDINATOR (опционально — URL координатора, который SPOT-агент получит в cloud-init)
+            Profile.Section coord = ini.get("COORDINATOR");
+            if (coord != null) {
+                cfg.coordinatorUrl = opt(coord, "url");
+            }
+
             return Optional.of(cfg);
         } catch (IOException | RuntimeException ex) {
             ex.printStackTrace();
@@ -176,6 +182,10 @@ public class IniLoader {
         public String s3Endpoint;
         public String s3AccessKeyId;
         public String s3SecretAccessKey;
+
+        // Coordinator URL — прокидывается в COORDINATOR_URL в /etc/default/spot-agent
+        // Читается из [COORDINATOR] url = http://<vm-ip>:8081
+        public String coordinatorUrl;
 
         public VmConfig(String folderId, String zoneId, int vmCount,
                         String vmName, String imageId, String platformId,

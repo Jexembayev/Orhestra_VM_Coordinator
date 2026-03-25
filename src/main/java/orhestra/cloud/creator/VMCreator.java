@@ -39,9 +39,18 @@ public class VMCreator {
                 for (int i = 0; i < count; i++) {
                         String name = cfg.vmName + "-" + UUID.randomUUID();
 
+                        // Resolve coordinator URL: explicit param wins, then INI [COORDINATOR] url
+                        String effectiveCoordinatorUrl = (coordinatorUrl != null && !coordinatorUrl.isBlank())
+                                ? coordinatorUrl
+                                : cfg.coordinatorUrl;
+                        if (effectiveCoordinatorUrl == null || effectiveCoordinatorUrl.isBlank()) {
+                                throw new IllegalStateException(
+                                        "coordinatorUrl not set — add [COORDINATOR] url = http://<vm-ip>:8081 to config.ini");
+                        }
+
                         // Build /etc/default/spot-agent env file
                 StringBuilder envFile = new StringBuilder();
-                envFile.append("COORDINATOR_URL=").append(coordinatorUrl).append("\n");
+                envFile.append("COORDINATOR_URL=").append(effectiveCoordinatorUrl).append("\n");
                 if (cfg.s3Endpoint != null && !cfg.s3Endpoint.isBlank()) {
                     envFile.append("S3_ENDPOINT=").append(cfg.s3Endpoint).append("\n");
                 }
