@@ -1,6 +1,0 @@
-{
-  "algorithms": ["sphere", "rosenbrock"],
-  "iterations": { "min": 100, "max": 300, "step": 100 },
-  "agents":     { "min": 25,  "max": 75,  "step": 25 },
-  "dimension":  { "min": 1,   "max": 2,   "step": 1 }
-}

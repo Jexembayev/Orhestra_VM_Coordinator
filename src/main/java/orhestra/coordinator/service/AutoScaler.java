@@ -163,7 +163,7 @@ public class AutoScaler {
     private void notifyUi(State state) {
         Consumer<State> cb = uiCallback;
         if (cb != null) {
-            javafx.application.Platform.runLater(() -> cb.accept(state));
+            cb.accept(state);
         }
     }
 }

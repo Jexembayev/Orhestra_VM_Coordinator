@@ -1,0 +1,18 @@
+[Unit]
+Description=Orhestra Coordinator HTTP Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=orhestra
+WorkingDirectory=/opt/orhestra
+EnvironmentFile=/etc/default/orhestra-coordinator
+ExecStart=/usr/bin/java -jar /opt/orhestra/coordinator.jar
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=orhestra-coordinator
+
+[Install]
+WantedBy=multi-user.target
