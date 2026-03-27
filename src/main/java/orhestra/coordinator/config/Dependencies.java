@@ -2,6 +2,8 @@ package orhestra.coordinator.config;
 
 import orhestra.coordinator.api.internal.v1.HeartbeatController;
 import orhestra.coordinator.api.internal.v1.TaskController;
+import orhestra.coordinator.api.v1.AdminConfigController;
+import orhestra.coordinator.api.v1.AdminSpotsController;
 import orhestra.coordinator.api.v1.HealthController;
 import orhestra.coordinator.api.v1.JobController;
 import orhestra.coordinator.api.v1.ParameterSchemaController;
@@ -11,6 +13,7 @@ import orhestra.coordinator.repository.SpotRepository;
 import orhestra.coordinator.repository.TaskRepository;
 import orhestra.coordinator.scheduler.Scheduler;
 import orhestra.coordinator.server.RouterHandler;
+import orhestra.coordinator.service.ConfigService;
 import orhestra.coordinator.service.JobService;
 import orhestra.coordinator.service.SpotService;
 import orhestra.coordinator.service.SpotTaskBlacklist;
@@ -57,6 +60,11 @@ public final class Dependencies implements AutoCloseable {
     private final ParameterSchemaController parameterSchemaController;
     private final HeartbeatController heartbeatController;
     private final TaskController taskController;
+    private final AdminConfigController adminConfigController;
+    private final AdminSpotsController adminSpotsController;
+
+    // Config service (cloud config / VM creation)
+    private final ConfigService configService;
 
     // Router (lazy-initialized)
     private RouterHandler routerHandler;
@@ -92,6 +100,11 @@ public final class Dependencies implements AutoCloseable {
         // Controllers (internal API)
         this.heartbeatController = new HeartbeatController(spotService);
         this.taskController = new TaskController(taskService);
+
+        // Admin / cloud management
+        this.configService = new ConfigService();
+        this.adminConfigController = new AdminConfigController(configService);
+        this.adminSpotsController  = new AdminSpotsController(configService);
 
         log.info("Dependencies initialized successfully");
     }
@@ -179,9 +192,11 @@ public final class Dependencies implements AutoCloseable {
                     .registerController(spotController)
                     .registerController(jobController)
                     .registerController(parameterSchemaController)
+                    .registerController(adminConfigController)
+                    .registerController(adminSpotsController)
                     .registerController(heartbeatController)
                     .registerController(taskController);
-            log.info("RouterHandler created with {} controllers", 6);
+            log.info("RouterHandler created with {} controllers", 8);
         }
         return routerHandler;
     }
