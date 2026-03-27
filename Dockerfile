@@ -5,8 +5,8 @@ LABEL description="Orhestra Coordinator — headless HTTP server"
 
 WORKDIR /app
 
-# Copy the fat JAR (built by maven-assembly-plugin)
-COPY target/OrhestraV2-*-jar-with-dependencies.jar app.jar
+# Copy the fat JAR (built by maven-shade-plugin)
+COPY target/OrhestraV2-*.jar app.jar
 
 # Copy parameter schema (served at GET /api/v1/parameter-schema)
 COPY src/main/resources/parameters.json /app/parameters.json

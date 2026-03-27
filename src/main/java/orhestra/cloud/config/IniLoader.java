@@ -2,6 +2,8 @@ package orhestra.cloud.config;
 
 import org.ini4j.Ini;
 import org.ini4j.Profile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -14,6 +16,8 @@ import java.util.Optional;
  */
 public class IniLoader {
 
+    private static final Logger log = LoggerFactory.getLogger(IniLoader.class);
+
     /** Полная конфигурация (для экрана/проверок/списков ВМ). */
     public static Optional<CloudConfig> load(File file) {
         try {
@@ -25,15 +29,21 @@ public class IniLoader {
             Profile.Section ssh  = ini.get("SSH");
             Profile.Section ovpn = ini.get("OVPN"); // опционально
 
-            if (auth == null || net == null || vm == null || ssh == null)
+            if (auth == null || net == null || vm == null || ssh == null) {
+                log.warn("IniLoader.load: missing required section(s) — auth={} network={} vm={} ssh={}",
+                        auth != null, net != null, vm != null, ssh != null);
                 return Optional.empty();
+            }
 
             String keyPath = opt(ssh, "public_key_path");
             String keyText = opt(ssh, "public_key");
             if ((keyText == null || keyText.isBlank()) && keyPath != null && !keyPath.isBlank()) {
                 keyText = Files.readString(new File(keyPath).toPath()).trim();
             }
-            if (keyText == null || keyText.isBlank()) return Optional.empty();
+            if (keyText == null || keyText.isBlank()) {
+                log.warn("IniLoader.load: [SSH] section found but both public_key and public_key_path are missing/empty");
+                return Optional.empty();
+            }
 
             CloudConfig cfg = new CloudConfig();
 
@@ -81,7 +91,7 @@ public class IniLoader {
 
             return Optional.of(cfg);
         } catch (IOException | RuntimeException ex) {
-            ex.printStackTrace();
+            log.warn("IniLoader.load: failed to parse config file '{}': {}", file.getName(), ex.getMessage(), ex);
             return Optional.empty();
         }
     }
@@ -98,8 +108,11 @@ public class IniLoader {
             Profile.Section vm   = ini.get("VM");
             Profile.Section ssh  = ini.get("SSH");
 
-            if (auth == null || net == null || vm == null || ssh == null)
+            if (auth == null || net == null || vm == null || ssh == null) {
+                log.warn("IniLoader.loadVmConfig: missing required section(s) — auth={} network={} vm={} ssh={}",
+                        auth != null, net != null, vm != null, ssh != null);
                 return Optional.empty();
+            }
 
             // прочитаем ключ либо из текста, либо из файла
             String keyPath = opt(ssh, "public_key_path");
@@ -107,7 +120,10 @@ public class IniLoader {
             if ((keyText == null || keyText.isBlank()) && keyPath != null && !keyPath.isBlank()) {
                 keyText = Files.readString(new File(keyPath).toPath()).trim();
             }
-            if (keyText == null || keyText.isBlank()) return Optional.empty();
+            if (keyText == null || keyText.isBlank()) {
+                log.warn("IniLoader.loadVmConfig: [SSH] section found but both public_key and public_key_path are missing/empty");
+                return Optional.empty();
+            }
 
             VmConfig cfg = new VmConfig(
                     auth.fetch("folder_id"),
@@ -143,7 +159,7 @@ public class IniLoader {
 
             return Optional.of(cfg);
         } catch (IOException | RuntimeException ex) {
-            ex.printStackTrace();
+            log.warn("IniLoader.loadVmConfig: failed to parse config file '{}': {}", file.getName(), ex.getMessage(), ex);
             return Optional.empty();
         }
     }
