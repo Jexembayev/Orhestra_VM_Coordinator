@@ -51,6 +51,13 @@ public class VMCreator {
                         // Build /etc/default/spot-agent env file
                 StringBuilder envFile = new StringBuilder();
                 envFile.append("COORDINATOR_URL=").append(effectiveCoordinatorUrl).append("\n");
+
+                // Pass agent key from coordinator env → spot env so spots can auth on /internal/
+                String agentKey = System.getenv("ORHESTRA_AGENT_KEY");
+                if (agentKey != null && !agentKey.isBlank()) {
+                    envFile.append("ORHESTRA_AGENT_KEY=").append(agentKey).append("\n");
+                }
+
                 if (cfg.s3Endpoint != null && !cfg.s3Endpoint.isBlank()) {
                     envFile.append("S3_ENDPOINT=").append(cfg.s3Endpoint).append("\n");
                 }

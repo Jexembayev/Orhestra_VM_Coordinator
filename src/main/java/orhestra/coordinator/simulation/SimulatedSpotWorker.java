@@ -87,7 +87,7 @@ public final class SimulatedSpotWorker implements Runnable {
 
                 if (shouldFail) {
                     TaskFailResult res = taskService.failTaskIdempotent(
-                            task.id(), spotId, "Simulated failure", false);
+                            task.id(), spotId, "Simulated failure", false, null, null);
                     log.debug("Sim {} failed task {} → {}", spotId, task.id(), res);
                 } else {
                     double fopt = ThreadLocalRandom.current().nextDouble() * 100.0;
@@ -95,7 +95,7 @@ public final class SimulatedSpotWorker implements Runnable {
                     String result = String.format("{\"sim\":true,\"fopt\":%.6f,\"iter\":%d}", fopt, iter);
 
                     TaskCompleteResult res = taskService.completeTaskIdempotent(
-                            task.id(), spotId, delay, iter, fopt, result);
+                            task.id(), spotId, delay, iter, fopt, result, null);
                     log.debug("Sim {} completed task {} → {}", spotId, task.id(), res);
                 }
 

@@ -72,14 +72,20 @@ public class HeartbeatController implements Controller {
 
         String spotId;
         if (body != null && !body.isBlank()) {
-            // New protocol: parse capabilities
             HelloRequest helloReq = RouterHandler.mapper().readValue(body, HelloRequest.class);
             String capJson = helloReq.capabilitiesJson(RouterHandler.mapper());
             String labels = helloReq.labelsString();
-            int maxConcurrent = helloReq.spotInfo() != null ? helloReq.spotInfo().maxConcurrent() : 0;
-            int cores = helloReq.spotInfo() != null ? helloReq.spotInfo().cpuCores() : 0;
-            long ramMb = helloReq.spotInfo() != null ? helloReq.spotInfo().ramMb() : 0;
-            spotId = spotService.registerSpot(clientIp, cores, ramMb, maxConcurrent, capJson, labels);
+            HelloRequest.SpotInfo si = helloReq.spotInfo();
+            int maxConcurrent = si != null ? si.maxConcurrent() : 0;
+            int cores         = si != null ? si.cpuCores()      : 0;
+            long ramMb        = si != null ? si.ramMb()         : 0;
+            String hostname      = si != null ? si.hostname()      : null;
+            String agentVersion  = si != null ? si.agentVersion()  : null;
+            String osName        = si != null ? si.osName()        : null;
+            String jvmVersion    = si != null ? si.jvmVersion()    : null;
+            double totalDiskGb   = si != null ? si.totalDiskGb()   : 0;
+            spotId = spotService.registerSpot(clientIp, cores, ramMb, maxConcurrent, capJson, labels,
+                    hostname, agentVersion, osName, jvmVersion, totalDiskGb);
         } else {
             // Legacy: no body
             spotId = spotService.registerSpot(clientIp);
@@ -110,7 +116,13 @@ public class HeartbeatController implements Controller {
                 request.runningTasks(),
                 request.totalCores(),
                 request.ramUsedMb(),
-                request.ramTotalMb());
+                request.ramTotalMb(),
+                request.loadAvg1m(),
+                request.swapUsedMb(),
+                request.diskFreeGb(),
+                request.jvmHeapUsedMb(),
+                request.jvmHeapMaxMb(),
+                request.cachedArtifacts());
 
         // Fire UI event
         AppBus.fireSpotsChanged();

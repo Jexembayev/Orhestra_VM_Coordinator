@@ -51,9 +51,12 @@ public class JdbcSpotRepository implements SpotRepository {
         String sql = """
                     MERGE INTO spots (id, ip_address, cpu_load, running_tasks, total_cores,
                                       ram_used_mb, ram_total_mb, max_concurrent, capabilities_json, labels,
-                                      status, last_heartbeat, registered_at)
+                                      status, last_heartbeat, registered_at,
+                                      hostname, agent_version, os_name,
+                                      load_avg_1m, swap_used_mb, disk_free_gb,
+                                      jvm_heap_used_mb, jvm_heap_max_mb, cached_artifacts)
                     KEY (id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
 
         try (Connection conn = db.getConnection();
@@ -72,6 +75,15 @@ public class JdbcSpotRepository implements SpotRepository {
             ps.setString(11, spot.status().name());
             setTimestamp(ps, 12, spot.lastHeartbeat());
             setTimestamp(ps, 13, spot.registeredAt());
+            ps.setString(14, spot.hostname());
+            ps.setString(15, spot.agentVersion());
+            ps.setString(16, spot.osName());
+            ps.setDouble(17, spot.loadAvg1m());
+            ps.setLong(18, spot.swapUsedMb());
+            ps.setDouble(19, spot.diskFreeGb());
+            ps.setLong(20, spot.jvmHeapUsedMb());
+            ps.setLong(21, spot.jvmHeapMaxMb());
+            ps.setInt(22, spot.cachedArtifacts());
 
             ps.executeUpdate();
             conn.commit();
@@ -131,25 +143,31 @@ public class JdbcSpotRepository implements SpotRepository {
 
     @Override
     public void heartbeat(String spotId, String ipAddress, double cpuLoad, int runningTasks, int totalCores,
-            long ramUsedMb, long ramTotalMb) {
-        // Use UPDATE + INSERT pattern (more portable than MERGE with subselect)
+            long ramUsedMb, long ramTotalMb,
+            double loadAvg1m, long swapUsedMb, double diskFreeGb,
+            long jvmHeapUsedMb, long jvmHeapMaxMb, int cachedArtifacts) {
         String updateSql = """
                     UPDATE spots
                     SET ip_address = ?, cpu_load = ?, running_tasks = ?, total_cores = ?,
                         ram_used_mb = ?, ram_total_mb = ?,
+                        load_avg_1m = ?, swap_used_mb = ?, disk_free_gb = ?,
+                        jvm_heap_used_mb = ?, jvm_heap_max_mb = ?, cached_artifacts = ?,
                         status = 'UP', last_heartbeat = ?
                     WHERE id = ?
                 """;
 
         String insertSql = """
-                    INSERT INTO spots (id, ip_address, cpu_load, running_tasks, total_cores, ram_used_mb, ram_total_mb, status, last_heartbeat, registered_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'UP', ?, ?)
+                    INSERT INTO spots (id, ip_address, cpu_load, running_tasks, total_cores,
+                                       ram_used_mb, ram_total_mb,
+                                       load_avg_1m, swap_used_mb, disk_free_gb,
+                                       jvm_heap_used_mb, jvm_heap_max_mb, cached_artifacts,
+                                       status, last_heartbeat, registered_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'UP', ?, ?)
                 """;
 
         try (Connection conn = db.getConnection()) {
             Timestamp now = Timestamp.from(Instant.now());
 
-            // Try UPDATE first
             try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
                 ps.setString(1, ipAddress);
                 ps.setDouble(2, cpuLoad);
@@ -157,13 +175,18 @@ public class JdbcSpotRepository implements SpotRepository {
                 ps.setInt(4, totalCores);
                 ps.setLong(5, ramUsedMb);
                 ps.setLong(6, ramTotalMb);
-                ps.setTimestamp(7, now);
-                ps.setString(8, spotId);
+                ps.setDouble(7, loadAvg1m);
+                ps.setLong(8, swapUsedMb);
+                ps.setDouble(9, diskFreeGb);
+                ps.setLong(10, jvmHeapUsedMb);
+                ps.setLong(11, jvmHeapMaxMb);
+                ps.setInt(12, cachedArtifacts);
+                ps.setTimestamp(13, now);
+                ps.setString(14, spotId);
 
                 int updated = ps.executeUpdate();
 
                 if (updated == 0) {
-                    // No existing record - INSERT new one
                     try (PreparedStatement insertPs = conn.prepareStatement(insertSql)) {
                         insertPs.setString(1, spotId);
                         insertPs.setString(2, ipAddress);
@@ -172,8 +195,14 @@ public class JdbcSpotRepository implements SpotRepository {
                         insertPs.setInt(5, totalCores);
                         insertPs.setLong(6, ramUsedMb);
                         insertPs.setLong(7, ramTotalMb);
-                        insertPs.setTimestamp(8, now);
-                        insertPs.setTimestamp(9, now);
+                        insertPs.setDouble(8, loadAvg1m);
+                        insertPs.setLong(9, swapUsedMb);
+                        insertPs.setDouble(10, diskFreeGb);
+                        insertPs.setLong(11, jvmHeapUsedMb);
+                        insertPs.setLong(12, jvmHeapMaxMb);
+                        insertPs.setInt(13, cachedArtifacts);
+                        insertPs.setTimestamp(14, now);
+                        insertPs.setTimestamp(15, now);
                         insertPs.executeUpdate();
                     }
                 }
@@ -303,6 +332,15 @@ public class JdbcSpotRepository implements SpotRepository {
                 .status(SpotStatus.valueOf(rs.getString("status")))
                 .lastHeartbeat(toInstant(rs.getTimestamp("last_heartbeat")))
                 .registeredAt(toInstant(rs.getTimestamp("registered_at")))
+                .hostname(rs.getString("hostname"))
+                .agentVersion(rs.getString("agent_version"))
+                .osName(rs.getString("os_name"))
+                .loadAvg1m(rs.getDouble("load_avg_1m"))
+                .swapUsedMb(rs.getLong("swap_used_mb"))
+                .diskFreeGb(rs.getDouble("disk_free_gb"))
+                .jvmHeapUsedMb(rs.getLong("jvm_heap_used_mb"))
+                .jvmHeapMaxMb(rs.getLong("jvm_heap_max_mb"))
+                .cachedArtifacts(rs.getInt("cached_artifacts"))
                 .build();
     }
 

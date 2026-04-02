@@ -171,7 +171,7 @@ public interface TaskRepository {
      * @return detailed result indicating outcome
      */
     TaskCompleteResult completeIdempotent(String taskId, String spotId, long runtimeMs, Integer iter, Double fopt,
-            String result);
+            String result, Long peakRamMb);
 
     /**
      * Idempotent fail: returns detailed result for proper HTTP responses.
@@ -182,7 +182,8 @@ public interface TaskRepository {
      * @param retriable    whether the failure is retriable
      * @return detailed result indicating outcome
      */
-    TaskFailResult failIdempotent(String taskId, String spotId, String errorMessage, boolean retriable);
+    TaskFailResult failIdempotent(String taskId, String spotId, String errorMessage, boolean retriable,
+            Integer exitCode, String outputSnippet);
 
     /**
      * Update the status of a task.

@@ -11,10 +11,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record TaskFailRequest(
-        @JsonProperty("spotId") String spotId,
-        @JsonProperty("error") String error,
-        @JsonProperty("retriable") boolean retriable,
-        @JsonProperty("failureReason") String failureReason) {
+        @JsonProperty("spotId")         String spotId,
+        @JsonProperty("error")          String error,
+        @JsonProperty("retriable")      boolean retriable,
+        @JsonProperty("failureReason")  String failureReason,
+        // new in agent v2.2+
+        @JsonProperty("exitCode")       Integer exitCode,
+        @JsonProperty("outputSnippet")  String outputSnippet) {
     /** Default: failures are retriable unless explicitly marked otherwise */
     public static final boolean DEFAULT_RETRIABLE = true;
 
@@ -26,16 +29,16 @@ public record TaskFailRequest(
 
     /** Create with defaults */
     public static TaskFailRequest of(String spotId, String error) {
-        return new TaskFailRequest(spotId, error, DEFAULT_RETRIABLE, "RUNTIME_ERROR");
+        return new TaskFailRequest(spotId, error, DEFAULT_RETRIABLE, "RUNTIME_ERROR", null, null);
     }
 
     /** Create non-retriable failure */
     public static TaskFailRequest permanent(String spotId, String error) {
-        return new TaskFailRequest(spotId, error, false, "RUNTIME_ERROR");
+        return new TaskFailRequest(spotId, error, false, "RUNTIME_ERROR", null, null);
     }
 
     /** Create unsupported failure */
     public static TaskFailRequest unsupported(String spotId, String error) {
-        return new TaskFailRequest(spotId, error, false, "UNSUPPORTED");
+        return new TaskFailRequest(spotId, error, false, "UNSUPPORTED", null, null);
     }
 }

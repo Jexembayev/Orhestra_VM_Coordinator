@@ -20,6 +20,16 @@ public final class Spot {
     private final SpotStatus status;
     private final Instant lastHeartbeat;
     private final Instant registeredAt;
+    // fields from agent v2.2+
+    private final String hostname;
+    private final String agentVersion;
+    private final String osName;
+    private final double loadAvg1m;
+    private final long swapUsedMb;
+    private final double diskFreeGb;
+    private final long jvmHeapUsedMb;
+    private final long jvmHeapMaxMb;
+    private final int cachedArtifacts;
 
     private Spot(Builder builder) {
         this.id = Objects.requireNonNull(builder.id, "id is required");
@@ -35,6 +45,15 @@ public final class Spot {
         this.status = Objects.requireNonNull(builder.status, "status is required");
         this.lastHeartbeat = builder.lastHeartbeat;
         this.registeredAt = builder.registeredAt;
+        this.hostname = builder.hostname;
+        this.agentVersion = builder.agentVersion;
+        this.osName = builder.osName;
+        this.loadAvg1m = builder.loadAvg1m;
+        this.swapUsedMb = builder.swapUsedMb;
+        this.diskFreeGb = builder.diskFreeGb;
+        this.jvmHeapUsedMb = builder.jvmHeapUsedMb;
+        this.jvmHeapMaxMb = builder.jvmHeapMaxMb;
+        this.cachedArtifacts = builder.cachedArtifacts;
     }
 
     // Getters
@@ -90,6 +109,16 @@ public final class Spot {
         return registeredAt;
     }
 
+    public String hostname() { return hostname; }
+    public String agentVersion() { return agentVersion; }
+    public String osName() { return osName; }
+    public double loadAvg1m() { return loadAvg1m; }
+    public long swapUsedMb() { return swapUsedMb; }
+    public double diskFreeGb() { return diskFreeGb; }
+    public long jvmHeapUsedMb() { return jvmHeapUsedMb; }
+    public long jvmHeapMaxMb() { return jvmHeapMaxMb; }
+    public int cachedArtifacts() { return cachedArtifacts; }
+
     /** Check if SPOT is considered healthy (UP status) */
     public boolean isHealthy() {
         return status == SpotStatus.UP;
@@ -110,7 +139,16 @@ public final class Spot {
                 .labels(labels)
                 .status(status)
                 .lastHeartbeat(lastHeartbeat)
-                .registeredAt(registeredAt);
+                .registeredAt(registeredAt)
+                .hostname(hostname)
+                .agentVersion(agentVersion)
+                .osName(osName)
+                .loadAvg1m(loadAvg1m)
+                .swapUsedMb(swapUsedMb)
+                .diskFreeGb(diskFreeGb)
+                .jvmHeapUsedMb(jvmHeapUsedMb)
+                .jvmHeapMaxMb(jvmHeapMaxMb)
+                .cachedArtifacts(cachedArtifacts);
     }
 
     public static Builder builder() {
@@ -131,6 +169,15 @@ public final class Spot {
         private SpotStatus status = SpotStatus.UP;
         private Instant lastHeartbeat;
         private Instant registeredAt;
+        private String hostname;
+        private String agentVersion;
+        private String osName;
+        private double loadAvg1m;
+        private long swapUsedMb;
+        private double diskFreeGb;
+        private long jvmHeapUsedMb;
+        private long jvmHeapMaxMb;
+        private int cachedArtifacts;
 
         public Builder id(String id) {
             this.id = id;
@@ -196,6 +243,16 @@ public final class Spot {
             this.registeredAt = registeredAt;
             return this;
         }
+
+        public Builder hostname(String hostname) { this.hostname = hostname; return this; }
+        public Builder agentVersion(String agentVersion) { this.agentVersion = agentVersion; return this; }
+        public Builder osName(String osName) { this.osName = osName; return this; }
+        public Builder loadAvg1m(double loadAvg1m) { this.loadAvg1m = loadAvg1m; return this; }
+        public Builder swapUsedMb(long swapUsedMb) { this.swapUsedMb = swapUsedMb; return this; }
+        public Builder diskFreeGb(double diskFreeGb) { this.diskFreeGb = diskFreeGb; return this; }
+        public Builder jvmHeapUsedMb(long jvmHeapUsedMb) { this.jvmHeapUsedMb = jvmHeapUsedMb; return this; }
+        public Builder jvmHeapMaxMb(long jvmHeapMaxMb) { this.jvmHeapMaxMb = jvmHeapMaxMb; return this; }
+        public Builder cachedArtifacts(int cachedArtifacts) { this.cachedArtifacts = cachedArtifacts; return this; }
 
         public Spot build() {
             return new Spot(this);

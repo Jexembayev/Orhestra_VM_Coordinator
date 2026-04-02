@@ -544,7 +544,7 @@ public class JdbcTaskRepository implements TaskRepository {
 
     @Override
     public TaskCompleteResult completeIdempotent(String taskId, String spotId, long runtimeMs, Integer iter,
-            Double fopt, String result) {
+            Double fopt, String result, Long peakRamMb) {
         // First check the current state (outside transaction for idempotency checks)
         Optional<Task> taskOpt = findById(taskId);
         if (taskOpt.isEmpty()) {
@@ -579,7 +579,7 @@ public class JdbcTaskRepository implements TaskRepository {
         // transaction
         String updateTaskSql = """
                     UPDATE tasks
-                    SET status = 'DONE', finished_at = ?, runtime_ms = ?, iter = ?, fopt = ?, result = ?
+                    SET status = 'DONE', finished_at = ?, runtime_ms = ?, iter = ?, fopt = ?, result = ?, peak_ram_mb = ?
                     WHERE id = ? AND assigned_to = ? AND status = 'RUNNING'
                 """;
 
@@ -593,8 +593,9 @@ public class JdbcTaskRepository implements TaskRepository {
                 setIntOrNull(ps, 3, iter);
                 setDoubleOrNull(ps, 4, fopt);
                 ps.setString(5, result);
-                ps.setString(6, taskId);
-                ps.setString(7, spotId);
+                if (peakRamMb != null) ps.setLong(6, peakRamMb); else ps.setNull(6, Types.BIGINT);
+                ps.setString(7, taskId);
+                ps.setString(8, spotId);
 
                 int tasksUpdated = ps.executeUpdate();
 
@@ -661,7 +662,8 @@ public class JdbcTaskRepository implements TaskRepository {
     }
 
     @Override
-    public TaskFailResult failIdempotent(String taskId, String spotId, String errorMessage, boolean retriable) {
+    public TaskFailResult failIdempotent(String taskId, String spotId, String errorMessage, boolean retriable,
+            Integer exitCode, String outputSnippet) {
         // First check the current state (outside transaction for idempotency checks)
         Optional<Task> taskOpt = findById(taskId);
         if (taskOpt.isEmpty()) {
@@ -699,17 +701,18 @@ public class JdbcTaskRepository implements TaskRepository {
             return TaskFailResult.RETRIED;
         } else {
             // Permanent failure - update both task AND job counters atomically
-            return markFailedWithJobUpdate(taskId, jobId, errorMessage);
+            return markFailedWithJobUpdate(taskId, jobId, errorMessage, exitCode, outputSnippet);
         }
     }
 
     /**
      * Mark task as permanently failed and update job counters atomically.
      */
-    private TaskFailResult markFailedWithJobUpdate(String taskId, String jobId, String errorMessage) {
+    private TaskFailResult markFailedWithJobUpdate(String taskId, String jobId, String errorMessage,
+            Integer exitCode, String outputSnippet) {
         String updateTaskSql = """
                     UPDATE tasks
-                    SET status = 'FAILED', error_message = ?, finished_at = ?
+                    SET status = 'FAILED', error_message = ?, finished_at = ?, exit_code = ?, output_snippet = ?
                     WHERE id = ? AND status = 'RUNNING'
                 """;
 
@@ -720,7 +723,10 @@ public class JdbcTaskRepository implements TaskRepository {
             try (PreparedStatement ps = conn.prepareStatement(updateTaskSql)) {
                 ps.setString(1, errorMessage);
                 ps.setTimestamp(2, now);
-                ps.setString(3, taskId);
+                if (exitCode != null) ps.setInt(3, exitCode); else ps.setNull(3, Types.INTEGER);
+                ps.setString(4, outputSnippet != null && outputSnippet.length() > 512
+                        ? outputSnippet.substring(outputSnippet.length() - 512) : outputSnippet);
+                ps.setString(5, taskId);
 
                 int tasksUpdated = ps.executeUpdate();
 

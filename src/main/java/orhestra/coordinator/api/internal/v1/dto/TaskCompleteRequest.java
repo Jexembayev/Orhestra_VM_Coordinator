@@ -12,12 +12,13 @@ import com.fasterxml.jackson.databind.JsonNode;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record TaskCompleteRequest(
-        @JsonProperty("spotId") String spotId,
-        @JsonProperty("runtimeMs") long runtimeMs,
-        @JsonProperty("iter") Integer iter,
-        @JsonProperty("fopt") Double fopt,
-        @JsonProperty("bestPos") JsonNode bestPos, // Raw array, stored as-is
-        @JsonProperty("charts") JsonNode charts // Optional additional data
+        @JsonProperty("spotId")     String spotId,
+        @JsonProperty("runtimeMs")  long runtimeMs,
+        @JsonProperty("iter")       Integer iter,
+        @JsonProperty("fopt")       Double fopt,
+        @JsonProperty("bestPos")    JsonNode bestPos,
+        @JsonProperty("charts")     JsonNode charts,
+        @JsonProperty("peakRamMb")  Long peakRamMb   // new in agent v2.2+
 ) {
     public void validate() {
         if (spotId == null || spotId.isBlank()) {

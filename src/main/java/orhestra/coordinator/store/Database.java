@@ -162,6 +162,20 @@ public final class Database implements AutoCloseable {
             st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS max_concurrent INT DEFAULT 0;");
             st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS capabilities_json CLOB;");
             st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS labels VARCHAR(512);");
+            // agent v2.2+ fields
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS hostname VARCHAR(256);");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS agent_version VARCHAR(32);");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS os_name VARCHAR(128);");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS load_avg_1m DOUBLE DEFAULT 0;");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS swap_used_mb BIGINT DEFAULT 0;");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS disk_free_gb DOUBLE DEFAULT 0;");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS jvm_heap_used_mb BIGINT DEFAULT 0;");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS jvm_heap_max_mb BIGINT DEFAULT 0;");
+            st.addBatch("ALTER TABLE spots ADD COLUMN IF NOT EXISTS cached_artifacts INT DEFAULT 0;");
+            // task v2.2+ fields
+            st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS peak_ram_mb BIGINT;");
+            st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS exit_code INT;");
+            st.addBatch("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS output_snippet VARCHAR(512);");
             // S3 artifact columns on jobs
             st.addBatch("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS artifact_bucket   VARCHAR(256);");
             st.addBatch("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS artifact_key      VARCHAR(1024);");

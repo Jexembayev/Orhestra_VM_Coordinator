@@ -15,11 +15,18 @@ public record HelloRequest(
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SpotInfo(
-            @JsonProperty("host") String host,
-            @JsonProperty("cpuCores") int cpuCores,
-            @JsonProperty("ramMb") long ramMb,
-            @JsonProperty("maxConcurrent") int maxConcurrent,
-            @JsonProperty("labels") List<String> labels) {
+            @JsonProperty("host")           String host,
+            @JsonProperty("cpuCores")       int cpuCores,
+            @JsonProperty("ramMb")          long ramMb,
+            @JsonProperty("maxConcurrent")  int maxConcurrent,
+            @JsonProperty("labels")         List<String> labels,
+            // new fields (agent v2.2+)
+            @JsonProperty("hostname")       String hostname,
+            @JsonProperty("agentVersion")   String agentVersion,
+            @JsonProperty("osName")         String osName,
+            @JsonProperty("osVersion")      String osVersion,
+            @JsonProperty("jvmVersion")     String jvmVersion,
+            @JsonProperty("totalDiskGb")    double totalDiskGb) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

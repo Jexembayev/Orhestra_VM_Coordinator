@@ -118,7 +118,7 @@ public class TaskService {
      * Returns detailed result for HTTP response handling.
      */
     public TaskCompleteResult completeTaskIdempotent(String taskId, String spotId, long runtimeMs, Integer iter,
-            Double fopt, String result) {
+            Double fopt, String result, Long peakRamMb) {
         if (taskId == null || taskId.isBlank()) {
             throw new IllegalArgumentException("taskId is required");
         }
@@ -126,7 +126,7 @@ public class TaskService {
             throw new IllegalArgumentException("spotId is required");
         }
 
-        TaskCompleteResult res = taskRepository.completeIdempotent(taskId, spotId, runtimeMs, iter, fopt, result);
+        TaskCompleteResult res = taskRepository.completeIdempotent(taskId, spotId, runtimeMs, iter, fopt, result, peakRamMb);
 
         if (res == TaskCompleteResult.COMPLETED) {
             log.info("Task {} completed by spot {} in {}ms", taskId, spotId, runtimeMs);
@@ -196,7 +196,8 @@ public class TaskService {
      * Report task failure with idempotent result.
      * Returns detailed result for HTTP response handling.
      */
-    public TaskFailResult failTaskIdempotent(String taskId, String spotId, String errorMessage, boolean retriable) {
+    public TaskFailResult failTaskIdempotent(String taskId, String spotId, String errorMessage, boolean retriable,
+            Integer exitCode, String outputSnippet) {
         if (taskId == null || taskId.isBlank()) {
             throw new IllegalArgumentException("taskId is required");
         }
@@ -204,7 +205,7 @@ public class TaskService {
             throw new IllegalArgumentException("spotId is required");
         }
 
-        TaskFailResult res = taskRepository.failIdempotent(taskId, spotId, errorMessage, retriable);
+        TaskFailResult res = taskRepository.failIdempotent(taskId, spotId, errorMessage, retriable, exitCode, outputSnippet);
 
         if (res == TaskFailResult.RETRIED) {
             log.info("Task {} failed by spot {}, will retry", taskId, spotId);

@@ -124,7 +124,8 @@ public class TaskController implements Controller {
                 request.runtimeMs(),
                 request.iter(),
                 request.fopt(),
-                request.resultJson());
+                request.resultJson(),
+                request.peakRamMb());
 
         // Fire UI event on success
         if (result == TaskCompleteResult.COMPLETED) {
@@ -176,7 +177,9 @@ public class TaskController implements Controller {
                 taskId,
                 request.spotId(),
                 request.error(),
-                request.retriable());
+                request.retriable(),
+                request.exitCode(),
+                request.outputSnippet());
 
         // Fire UI event on status change
         if (result == TaskFailResult.RETRIED || result == TaskFailResult.FAILED) {

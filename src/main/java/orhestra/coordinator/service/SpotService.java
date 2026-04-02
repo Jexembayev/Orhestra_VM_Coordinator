@@ -43,6 +43,16 @@ public class SpotService {
      */
     public String registerSpot(String ipAddress, int cores, long ramMb,
             int maxConcurrent, String capabilitiesJson, String labels) {
+        return registerSpot(ipAddress, cores, ramMb, maxConcurrent, capabilitiesJson, labels,
+                null, null, null, null, 0);
+    }
+
+    /**
+     * Register a new SPOT with full system info (agent v2.2+).
+     */
+    public String registerSpot(String ipAddress, int cores, long ramMb,
+            int maxConcurrent, String capabilitiesJson, String labels,
+            String hostname, String agentVersion, String osName, String jvmVersion, double totalDiskGb) {
         String spotId = spotRepository.generateId();
 
         Spot spot = Spot.builder()
@@ -53,14 +63,18 @@ public class SpotService {
                 .maxConcurrent(maxConcurrent)
                 .capabilitiesJson(capabilitiesJson)
                 .labels(labels)
+                .hostname(hostname)
+                .agentVersion(agentVersion)
+                .osName(osName)
+                .diskFreeGb(totalDiskGb)
                 .status(SpotStatus.UP)
                 .lastHeartbeat(Instant.now())
                 .registeredAt(Instant.now())
                 .build();
 
         spotRepository.save(spot);
-        log.info("Registered new SPOT: {} from {} (cores={}, maxConcurrent={}, capabilities={})",
-                spotId, ipAddress, cores, maxConcurrent, capabilitiesJson != null ? "yes" : "none");
+        log.info("Registered new SPOT: {} from {} hostname={} agent={} (cores={}, maxConcurrent={})",
+                spotId, ipAddress, hostname, agentVersion, cores, maxConcurrent);
 
         return spotId;
     }
@@ -70,9 +84,21 @@ public class SpotService {
      */
     public void heartbeat(String spotId, String ipAddress, double cpuLoad, int runningTasks, int totalCores,
             long ramUsedMb, long ramTotalMb) {
-        spotRepository.heartbeat(spotId, ipAddress, cpuLoad, runningTasks, totalCores, ramUsedMb, ramTotalMb);
-        log.debug("Heartbeat from spot {} (cpu={}%, tasks={}, cores={}, ram={}/{}MB)", spotId, cpuLoad, runningTasks,
-                totalCores, ramUsedMb, ramTotalMb);
+        heartbeat(spotId, ipAddress, cpuLoad, runningTasks, totalCores, ramUsedMb, ramTotalMb,
+                0, 0, 0, 0, 0, 0);
+    }
+
+    /**
+     * Process heartbeat from a SPOT (agent v2.2+ with extended metrics).
+     */
+    public void heartbeat(String spotId, String ipAddress, double cpuLoad, int runningTasks, int totalCores,
+            long ramUsedMb, long ramTotalMb,
+            double loadAvg1m, long swapUsedMb, double diskFreeGb,
+            long jvmHeapUsedMb, long jvmHeapMaxMb, int cachedArtifacts) {
+        spotRepository.heartbeat(spotId, ipAddress, cpuLoad, runningTasks, totalCores, ramUsedMb, ramTotalMb,
+                loadAvg1m, swapUsedMb, diskFreeGb, jvmHeapUsedMb, jvmHeapMaxMb, cachedArtifacts);
+        log.debug("Heartbeat from spot {} (cpu={}%, tasks={}, diskFreeGb={}, jvmHeap={}/{}MB)",
+                spotId, cpuLoad, runningTasks, diskFreeGb, jvmHeapUsedMb, jvmHeapMaxMb);
     }
 
     /**

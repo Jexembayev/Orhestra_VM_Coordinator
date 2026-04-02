@@ -66,7 +66,7 @@ class JobCounterSyncTest {
 
         // 4. Complete task
         TaskCompleteResult result = taskRepository.completeIdempotent(
-                "task-1", "spot-1", 1000L, 5, 0.01, "{\"result\":\"done\"}");
+                "task-1", "spot-1", 1000L, 5, 0.01, "{\"result\":\"done\"}", null);
         assertEquals(TaskCompleteResult.COMPLETED, result);
 
         // 5. Verify job counters updated
@@ -103,12 +103,12 @@ class JobCounterSyncTest {
 
         // 3. Complete task first time
         TaskCompleteResult result1 = taskRepository.completeIdempotent(
-                "task-idempotent", "spot-1", 1000L, 5, 0.01, null);
+                "task-idempotent", "spot-1", 1000L, 5, 0.01, null, null);
         assertEquals(TaskCompleteResult.COMPLETED, result1);
 
         // 4. Complete again (idempotent) - should NOT increment
         TaskCompleteResult result2 = taskRepository.completeIdempotent(
-                "task-idempotent", "spot-1", 2000L, 10, 0.02, null);
+                "task-idempotent", "spot-1", 2000L, 10, 0.02, null, null);
         assertEquals(TaskCompleteResult.ALREADY_DONE, result2);
 
         // 5. Verify job counters stayed at 1
@@ -145,7 +145,7 @@ class JobCounterSyncTest {
 
         // 3. Fail task permanently (retriable=false or out of retries)
         TaskFailResult result = taskRepository.failIdempotent(
-                "task-fail", "spot-1", "Test error", false);
+                "task-fail", "spot-1", "Test error", false, null, null);
         assertEquals(TaskFailResult.FAILED, result);
 
         // 4. Verify job counters
@@ -182,7 +182,7 @@ class JobCounterSyncTest {
 
         // 3. Report retriable failure - should reset to NEW
         TaskFailResult result = taskRepository.failIdempotent(
-                "task-retry", "spot-1", "Transient error", true);
+                "task-retry", "spot-1", "Transient error", true, null, null);
         assertEquals(TaskFailResult.RETRIED, result);
 
         // 4. Verify job counters NOT incremented
@@ -220,7 +220,7 @@ class JobCounterSyncTest {
         taskRepository.claimTasks("spot-1", 2);
 
         // 4. Complete first task
-        taskRepository.completeIdempotent("task-m1", "spot-1", 100L, null, null, null);
+        taskRepository.completeIdempotent("task-m1", "spot-1", 100L, null, null, null, null);
 
         // 5. Verify job is RUNNING (not COMPLETED yet)
         Job afterFirst = jobRepository.findById("job-multi").orElseThrow();
@@ -228,7 +228,7 @@ class JobCounterSyncTest {
         assertEquals(JobStatus.RUNNING, afterFirst.status(), "Job should be RUNNING after 1 of 2 tasks");
 
         // 6. Complete second task
-        taskRepository.completeIdempotent("task-m2", "spot-1", 100L, null, null, null);
+        taskRepository.completeIdempotent("task-m2", "spot-1", 100L, null, null, null, null);
 
         // 7. Verify job is now COMPLETED
         Job afterSecond = jobRepository.findById("job-multi").orElseThrow();

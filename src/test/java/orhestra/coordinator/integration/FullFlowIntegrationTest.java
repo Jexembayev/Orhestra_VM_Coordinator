@@ -77,24 +77,24 @@ class FullFlowIntegrationTest {
                 // 4. Complete first task
                 Task task1 = claimed.get(0);
                 TaskCompleteResult result1 = deps.taskService().completeTaskIdempotent(
-                                task1.id(), spotId, 1500, 100, 0.001, "{\"result\":\"success\"}");
+                                task1.id(), spotId, 1500, 100, 0.001, "{\"result\":\"success\"}", null);
                 assertEquals(TaskCompleteResult.COMPLETED, result1);
 
                 // 5. Test idempotent completion (same task again)
                 TaskCompleteResult result1Again = deps.taskService().completeTaskIdempotent(
-                                task1.id(), spotId, 1500, 100, 0.001, "{\"result\":\"success\"}");
+                                task1.id(), spotId, 1500, 100, 0.001, "{\"result\":\"success\"}", null);
                 assertEquals(TaskCompleteResult.ALREADY_DONE, result1Again);
 
                 // 6. Complete second task
                 Task task2 = claimed.get(1);
                 TaskCompleteResult result2 = deps.taskService().completeTaskIdempotent(
-                                task2.id(), spotId, 2000, 200, 0.002, "{\"result\":\"success\"}");
+                                task2.id(), spotId, 2000, 200, 0.002, "{\"result\":\"success\"}", null);
                 assertEquals(TaskCompleteResult.COMPLETED, result2);
 
                 // 7. Fail third task (retriable)
                 Task task3 = claimed.get(2);
                 TaskFailResult failResult = deps.taskService().failTaskIdempotent(
-                                task3.id(), spotId, "Timeout error", true);
+                                task3.id(), spotId, "Timeout error", true, null, null);
                 assertEquals(TaskFailResult.RETRIED, failResult);
 
                 // 8. Verify task3 is back to NEW (ready for retry)
@@ -109,7 +109,7 @@ class FullFlowIntegrationTest {
 
                 // 10. Complete the retried task
                 TaskCompleteResult result3 = deps.taskService().completeTaskIdempotent(
-                                task3.id(), spotId, 1200, 150, 0.0015, "{\"result\":\"retry_success\"}");
+                                task3.id(), spotId, 1200, 150, 0.0015, "{\"result\":\"retry_success\"}", null);
                 assertEquals(TaskCompleteResult.COMPLETED, result3);
 
                 // 11. No more tasks to claim
@@ -163,7 +163,7 @@ class FullFlowIntegrationTest {
                         // Fail the task (non-retriable because maxAttempts = 1 and task already has 1
                         // attempt)
                         TaskFailResult failResult = deps2.taskService().failTaskIdempotent(
-                                        claimed.get(0).id(), spotId, "Fatal error", true);
+                                        claimed.get(0).id(), spotId, "Fatal error", true, null, null);
                         assertEquals(TaskFailResult.FAILED, failResult);
 
                         // Verify task is FAILED
@@ -172,7 +172,7 @@ class FullFlowIntegrationTest {
 
                         // Idempotent retry should return ALREADY_TERMINAL
                         TaskFailResult failAgain = deps2.taskService().failTaskIdempotent(
-                                        claimed.get(0).id(), spotId, "Another error", true);
+                                        claimed.get(0).id(), spotId, "Another error", true, null, null);
                         assertEquals(TaskFailResult.ALREADY_TERMINAL, failAgain);
                 } finally {
                         deps2.close();
@@ -199,7 +199,7 @@ class FullFlowIntegrationTest {
 
                 // Spot2 tries to complete - should return WRONG_SPOT
                 TaskCompleteResult result = deps.taskService().completeTaskIdempotent(
-                                claimed.get(0).id(), spot2, 1000, 100, 0.001, "{}");
+                                claimed.get(0).id(), spot2, 1000, 100, 0.001, "{}", null);
                 assertEquals(TaskCompleteResult.WRONG_SPOT, result);
 
                 // Task should still be RUNNING assigned to spot1
@@ -214,11 +214,11 @@ class FullFlowIntegrationTest {
                 String spotId = deps.spotService().registerSpot("192.168.1.1");
 
                 TaskCompleteResult completeResult = deps.taskService().completeTaskIdempotent(
-                                "nonexistent-task", spotId, 1000, 100, 0.001, "{}");
+                                "nonexistent-task", spotId, 1000, 100, 0.001, "{}", null);
                 assertEquals(TaskCompleteResult.NOT_FOUND, completeResult);
 
                 TaskFailResult failResult = deps.taskService().failTaskIdempotent(
-                                "nonexistent-task", spotId, "error", true);
+                                "nonexistent-task", spotId, "error", true, null, null);
                 assertEquals(TaskFailResult.NOT_FOUND, failResult);
         }
 }
