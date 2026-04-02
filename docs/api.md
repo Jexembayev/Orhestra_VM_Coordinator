@@ -1,16 +1,59 @@
 # Orhestra Coordinator — Full API Reference
 
-Base URL: `http://<coordinator-vm-ip>:8081`
+Base URL: `https://<coordinator-domain>`
+
+---
+
+## Аутентификация
+
+Все ручки делятся на три группы по уровню доступа:
+
+| Группа | Заголовок | Env-переменная | Кто использует |
+|---|---|---|---|
+| Открытые | — | — | все |
+| Admin API | `X-Orhestra-Admin-Key: <token>` | `ORHESTRA_ADMIN_KEY` | плагин, ручные запросы |
+| Internal API | `X-Orhestra-Key: <token>` | `ORHESTRA_AGENT_KEY` | SPOT-агенты |
+
+**Настройка токенов на сервере** — добавить в `/etc/default/orhestra-coordinator`:
+```bash
+ORHESTRA_ADMIN_KEY=<сгенерировать: openssl rand -hex 32>
+ORHESTRA_AGENT_KEY=<сгенерировать: openssl rand -hex 32>
+```
+
+Если переменная не задана — соответствующая группа ручек работает без аутентификации.
+При неверном или отсутствующем токене возвращается `403 Forbidden`.
+
+---
+
+## Сводная таблица всех ручек
+
+| Метод | Путь | Доступ | Описание |
+|---|---|---|---|
+| `GET` | `/api/v1/health` | открытая | Health check |
+| `GET` | `/api/v1/parameter-schema` | Admin Key | Схема параметров для плагина |
+| `POST` | `/api/v1/jobs` | Admin Key | Создать задание |
+| `GET` | `/api/v1/jobs/{id}` | Admin Key | Статус задания |
+| `GET` | `/api/v1/jobs/{id}/results` | Admin Key | Результаты задания |
+| `GET` | `/api/v1/spots` | Admin Key | Список SPOT-нод |
+| `POST` | `/api/v1/admin/config` | Admin Key | Загрузить config.ini |
+| `GET` | `/api/v1/admin/config` | Admin Key | Текущий конфиг (секреты скрыты) |
+| `POST` | `/api/v1/admin/spots/create` | Admin Key | Создать SPOT VM |
+| `GET` | `/api/v1/admin/spots/create/status` | Admin Key | Статус создания VM |
+| `POST` | `/internal/v1/hello` | Agent Key | Регистрация SPOT |
+| `POST` | `/internal/v1/heartbeat` | Agent Key | Heartbeat SPOT |
+| `POST` | `/internal/v1/tasks/claim` | Agent Key | Получить задачи |
+| `POST` | `/internal/v1/tasks/{id}/complete` | Agent Key | Завершить задачу |
+| `POST` | `/internal/v1/tasks/{id}/fail` | Agent Key | Сообщить об ошибке |
 
 ---
 
 ## Public API `/api/v1/`
 
 ### `GET /api/v1/health`
-**Проверка состояния сервера. Всегда возвращает 200 (нет auth).**
+**Проверка состояния сервера. Открытая — auth не требуется.**
 
 ```bash
-curl http://<VM>:8081/api/v1/health
+curl https://<coordinator-domain>/api/v1/health
 ```
 ```json
 {
@@ -27,10 +70,11 @@ curl http://<VM>:8081/api/v1/health
 ---
 
 ### `GET /api/v1/spots`
-**Список всех зарегистрированных SPOT-нод.**
+**Список всех зарегистрированных SPOT-нод. Требует `X-Orhestra-Admin-Key`.**
 
 ```bash
-curl http://<VM>:8081/api/v1/spots
+curl -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+     https://<coordinator-domain>/api/v1/spots
 ```
 ```json
 {
@@ -51,10 +95,11 @@ curl http://<VM>:8081/api/v1/spots
 ---
 
 ### `POST /api/v1/jobs`
-**Создать задание. `PayloadGenerator` раскладывает параметры в декартово произведение задач.**
+**Создать задание. Требует `X-Orhestra-Admin-Key`. `PayloadGenerator` раскладывает параметры в декартово произведение задач.**
 
 ```bash
-curl -X POST http://<VM>:8081/api/v1/jobs \
+curl -X POST https://<coordinator-domain>/api/v1/jobs \
+  -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
     "artifactBucket":   "testtest",
@@ -95,10 +140,11 @@ curl -X POST http://<VM>:8081/api/v1/jobs \
 ---
 
 ### `GET /api/v1/jobs/{jobId}`
-**Статус задания.**
+**Статус задания. Требует `X-Orhestra-Admin-Key`.**
 
 ```bash
-curl http://<VM>:8081/api/v1/jobs/550e8400-...
+curl -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+     https://<coordinator-domain>/api/v1/jobs/550e8400-...
 ```
 ```json
 {
@@ -117,10 +163,11 @@ curl http://<VM>:8081/api/v1/jobs/550e8400-...
 ---
 
 ### `GET /api/v1/jobs/{jobId}/results`
-**Полные результаты всех задач задания.**
+**Полные результаты всех задач задания. Требует `X-Orhestra-Admin-Key`.**
 
 ```bash
-curl http://<VM>:8081/api/v1/jobs/550e8400-.../results
+curl -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+     https://<coordinator-domain>/api/v1/jobs/550e8400-.../results
 ```
 ```json
 {
@@ -144,10 +191,11 @@ curl http://<VM>:8081/api/v1/jobs/550e8400-.../results
 ---
 
 ### `GET /api/v1/parameter-schema`
-**Схема параметров для рендеринга формы в плагине.**
+**Схема параметров для рендеринга формы в плагине. Требует `X-Orhestra-Admin-Key`.**
 
 ```bash
-curl http://<VM>:8081/api/v1/parameter-schema
+curl -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+     https://<coordinator-domain>/api/v1/parameter-schema
 ```
 
 ---
@@ -155,6 +203,7 @@ curl http://<VM>:8081/api/v1/parameter-schema
 ## Admin API `/api/v1/admin/`
 
 > Используется IntelliJ-плагином или curl для управления координатором.
+> Все ручки требуют заголовок `X-Orhestra-Admin-Key`.
 
 ---
 
@@ -164,7 +213,8 @@ curl http://<VM>:8081/api/v1/parameter-schema
 Требуется один раз после запуска (или при смене конфига).
 
 ```bash
-curl -X POST http://<VM>:8081/api/v1/admin/config \
+curl -X POST https://<coordinator-domain>/api/v1/admin/config \
+  -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
   --data-binary @/path/to/config.ini
 ```
 ```json
@@ -186,7 +236,8 @@ ORHESTRA_CONFIG_PATH=/etc/orhestra/config.ini java -jar coordinator.jar
 **Текущий загруженный конфиг (секреты замаскированы `***`).**
 
 ```bash
-curl http://<VM>:8081/api/v1/admin/config
+curl -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+     https://<coordinator-domain>/api/v1/admin/config
 ```
 ```json
 {
@@ -220,10 +271,12 @@ curl http://<VM>:8081/api/v1/admin/config
 
 ```bash
 # Создать vm_count VM из конфига
-curl -X POST http://<VM>:8081/api/v1/admin/spots/create
+curl -X POST https://<coordinator-domain>/api/v1/admin/spots/create \
+  -H "X-Orhestra-Admin-Key: $ADMIN_KEY"
 
 # Создать конкретное число VM
-curl -X POST "http://<VM>:8081/api/v1/admin/spots/create?count=3"
+curl -X POST "https://<coordinator-domain>/api/v1/admin/spots/create?count=3" \
+  -H "X-Orhestra-Admin-Key: $ADMIN_KEY"
 ```
 ```json
 {
@@ -243,7 +296,8 @@ curl -X POST "http://<VM>:8081/api/v1/admin/spots/create?count=3"
 **Статус последнего/текущего создания VM.**
 
 ```bash
-curl http://<VM>:8081/api/v1/admin/spots/create/status
+curl -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+     https://<coordinator-domain>/api/v1/admin/spots/create/status
 ```
 ```json
 {
@@ -262,6 +316,7 @@ curl http://<VM>:8081/api/v1/admin/spots/create/status
 ## Internal API `/internal/v1/`
 
 > Используется **только SPOT-нодами** автоматически.
+> Все ручки требуют заголовок `X-Orhestra-Key` (env: `ORHESTRA_AGENT_KEY`).
 
 | Метод | Путь | Описание |
 |---|---|---|
@@ -275,24 +330,40 @@ curl http://<VM>:8081/api/v1/admin/spots/create/status
 
 ## Типичный сценарий работы
 
-```
-1. Запустить координатор на VM
-   → java -jar coordinator.jar
+```bash
+# 0. Задать переменную с токеном (один раз в терминале)
+export ADMIN_KEY=<твой ORHESTRA_ADMIN_KEY>
 
-2. Загрузить конфиг (один раз)
-   → POST /api/v1/admin/config  (body = content of config.ini)
+# 1. Запустить координатор на VM
+java -jar coordinator.jar
 
-3. Создать SPOT ноды
-   → POST /api/v1/admin/spots/create?count=2
-   → GET  /api/v1/admin/spots/create/status  (ждём SUCCESS)
+# 2. Загрузить конфиг (один раз)
+curl -X POST https://<coordinator-domain>/api/v1/admin/config \
+  -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+  --data-binary @config.ini
 
-4. SPOT ноды автоматически регаются
-   → GET /api/v1/spots  (видим их в статусе UP)
+# 3. Создать SPOT ноды
+curl -X POST "https://<coordinator-domain>/api/v1/admin/spots/create?count=2" \
+  -H "X-Orhestra-Admin-Key: $ADMIN_KEY"
 
-5. Создать задание из плагина/curl
-   → POST /api/v1/jobs
+# Ждём SUCCESS
+curl -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+     https://<coordinator-domain>/api/v1/admin/spots/create/status
 
-6. Следить за выполнением
-   → GET /api/v1/jobs/{id}
-   → GET /api/v1/jobs/{id}/results
+# 4. SPOT ноды автоматически регаются — проверяем
+curl -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+     https://<coordinator-domain>/api/v1/spots
+
+# 5. Создать задание
+curl -X POST https://<coordinator-domain>/api/v1/jobs \
+  -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{...}'
+
+# 6. Следить за выполнением
+curl -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+     https://<coordinator-domain>/api/v1/jobs/{id}
+
+curl -H "X-Orhestra-Admin-Key: $ADMIN_KEY" \
+     https://<coordinator-domain>/api/v1/jobs/{id}/results
 ```

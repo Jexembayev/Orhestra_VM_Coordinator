@@ -129,19 +129,25 @@ public class RouterHandler extends SimpleChannelInboundHandler<FullHttpRequest> 
 
     /**
      * Check if request requires and passes auth.
+     *
+     * /internal/*        → requires X-Orhestra-Key     (ORHESTRA_AGENT_KEY, used by SPOT agents)
+     * /api/v1/admin/*    → requires X-Orhestra-Admin-Key (ORHESTRA_ADMIN_KEY, used by plugin/admin)
+     * everything else    → public, no auth required
      */
     private boolean checkAuth(FullHttpRequest req, String path) {
-        if (!config.hasAgentKey()) {
-            return true; // No auth configured
+        if (path.startsWith("/internal/")) {
+            if (!config.hasAgentKey()) return true;
+            String key = req.headers().get("X-Orhestra-Key");
+            return config.agentKey().equals(key);
         }
 
-        // Only internal endpoints require auth
-        if (!path.startsWith("/internal/")) {
-            return true;
+        if (path.startsWith("/api/v1/admin/")) {
+            if (!config.hasAdminKey()) return true;
+            String key = req.headers().get("X-Orhestra-Admin-Key");
+            return config.adminKey().equals(key);
         }
 
-        String providedKey = req.headers().get("X-Orhestra-Key");
-        return config.agentKey().equals(providedKey);
+        return true;
     }
 
     /**

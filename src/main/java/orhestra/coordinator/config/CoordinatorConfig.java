@@ -26,7 +26,8 @@ public final class CoordinatorConfig {
     private Duration spotCleanupInterval = Duration.ofSeconds(5);
 
     // Auth settings (optional)
-    private String agentKey = null; // If set, SPOTs must provide X-Orhestra-Key header
+    private String agentKey = null; // If set, SPOTs must provide X-Orhestra-Key header on /internal/*
+    private String adminKey = null; // If set, admin API must provide X-Orhestra-Admin-Key header on /api/v1/admin/*
 
     // S3 / MinIO defaults (Coordinator stores & forwards — does not access S3 itself)
     private String s3Endpoint = "http://localhost:9000";
@@ -56,6 +57,11 @@ public final class CoordinatorConfig {
         String agentKey = System.getenv("ORHESTRA_AGENT_KEY");
         if (agentKey != null && !agentKey.isBlank()) {
             config.agentKey = agentKey;
+        }
+
+        String adminKey = System.getenv("ORHESTRA_ADMIN_KEY");
+        if (adminKey != null && !adminKey.isBlank()) {
+            config.adminKey = adminKey;
         }
 
         String maxAttempts = System.getenv("ORHESTRA_MAX_ATTEMPTS");
@@ -121,6 +127,14 @@ public final class CoordinatorConfig {
         return agentKey != null && !agentKey.isBlank();
     }
 
+    public String adminKey() {
+        return adminKey;
+    }
+
+    public boolean hasAdminKey() {
+        return adminKey != null && !adminKey.isBlank();
+    }
+
     public String s3Endpoint() {
         return s3Endpoint;
     }
@@ -142,6 +156,11 @@ public final class CoordinatorConfig {
 
     public CoordinatorConfig withAgentKey(String key) {
         this.agentKey = key;
+        return this;
+    }
+
+    public CoordinatorConfig withAdminKey(String key) {
+        this.adminKey = key;
         return this;
     }
 
